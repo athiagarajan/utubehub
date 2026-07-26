@@ -24,6 +24,9 @@ dist-ssr/
 .env
 .env.local
 
-# OS
-.DS_Store
-Thumbs.db
+# Secrets & Credentials
+oauth_client_utubehub.json
+**/oauth_client_*.json
+*.pem
+*.key
+

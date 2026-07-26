@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
   const [subscriptions, setSubscriptions] = useState([]);
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [activeTab, setActiveTab] = useState('videos'); // 'videos', 'shorts', 'playlists'
+  const [channelContent, setChannelContent] = useState([]);
+  const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
 
   useEffect(() => {
@@ -19,44 +23,74 @@ export default function App() {
       .catch((err) => console.error('Failed to load subscriptions:', err));
   }, []);
 
+  const selectChannel = (channel) => {
+    setSelectedChannel(channel);
+    loadChannelContent(channel.channelId, 'videos');
+  };
+
+  const loadChannelContent = (channelId, tab) => {
+    setActiveTab(tab);
+    let endpoint = `/api/v1/subscriptions/${channelId}/videos`;
+    if (tab === 'shorts') {
+      endpoint = `/api/v1/subscriptions/${channelId}/videos?shortsOnly=true`;
+    } else if (tab === 'playlists') {
+      endpoint = `/api/v1/subscriptions/${channelId}/playlists`;
+    }
+
+    fetch(endpoint)
+      .then((res) => res.json())
+      .then((data) => setChannelContent(data))
+      .catch((err) => console.error(`Failed to load ${tab}:`, err));
+  };
+
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Navigation & Header */}
+    <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+      {/* Header Bar */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span>▶</span> UTubeHub
           </h1>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa' }}>YouTube Subscription Management & AI Search Hub</p>
+          <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa' }}>YouTube Subscriptions, Media Player & AI Intelligence Hub</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '0.85rem', color: healthStatus.includes('Online') ? '#4ade80' : '#f87171', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ fontSize: '0.85rem', color: healthStatus.includes('Online') ? '#4ade80' : '#f87171' }}>
             ● {healthStatus}
           </div>
-          <a 
-            href="/swagger-ui.html" 
-            target="_blank" 
+          <a
+            href="/swagger-ui.html"
+            target="_blank"
             rel="noreferrer"
-            style={{ color: '#38bdf8', fontSize: '0.9rem', textDecoration: 'none', background: '#1e293b', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid #334155' }}
+            style={{ color: '#38bdf8', fontSize: '0.9rem', textDecoration: 'none', background: '#1e293b', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #334155' }}
           >
             📄 Swagger API Docs
+          </a>
+          <a
+            href="http://localhost:8080/oauth2/authorization/google"
+            style={{ color: '#ffffff', fontSize: '0.9rem', textDecoration: 'none', background: '#2563eb', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 'bold' }}
+          >
+            🔑 Log in with Google
           </a>
         </div>
       </header>
 
       {/* AI Prompt Search Input */}
-      <section style={{ marginBottom: '2.5rem', background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
-        <h3 style={{ marginTop: 0, color: '#f4f4f5' }}>✨ AI Prompt-Based Search</h3>
-        <p style={{ color: '#a1a1aa', fontSize: '0.9rem' }}>Ask anything across all your subscribed channels (e.g. "Show me Python tutorials under 15 minutes uploaded this week")</p>
+      <section style={{ marginBottom: '2rem', background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
+        <h3 style={{ marginTop: 0, color: '#f4f4f5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          ✨ AI Prompt-Based Search Engine
+        </h3>
+        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
+          Search across all your subscribed channels (e.g. <i>"Find Python coding tutorials under 20 mins from my subscriptions"</i>)
+        </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
             type="text"
-            placeholder="Type your prompt query here..."
+            placeholder="Enter your prompt query here..."
             value={searchPrompt}
             onChange={(e) => setSearchPrompt(e.target.value)}
             style={{
               flex: 1,
-              padding: '0.75rem 1rem',
+              padding: '0.8rem 1rem',
               borderRadius: '8px',
               border: '1px solid #3f3f46',
               background: '#09090b',
@@ -65,9 +99,9 @@ export default function App() {
             }}
           />
           <button
-            onClick={() => alert(`AI Search for: "${searchPrompt}" will be processed in Phase 4!`)}
+            onClick={() => alert(`AI Search for "${searchPrompt}" will process in Phase 4!`)}
             style={{
-              padding: '0.75rem 1.5rem',
+              padding: '0.8rem 1.75rem',
               borderRadius: '8px',
               border: 'none',
               background: '#cc0000',
@@ -76,28 +110,107 @@ export default function App() {
               cursor: 'pointer'
             }}
           >
-            Search
+            Run AI Prompt
           </button>
         </div>
       </section>
 
-      {/* Subscriptions Grid */}
-      <section>
-        <h2 style={{ color: '#f4f4f5', marginBottom: '1rem' }}>Subscribed Channels</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-          {subscriptions.map((sub, idx) => (
-            <div key={idx} style={{ background: '#18181b', padding: '1.25rem', borderRadius: '10px', border: '1px solid #27272a' }}>
-              <h3 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{sub.title}</h3>
-              <p style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>
-                Subscribers: <strong>{(sub.subscriberCount / 1000000).toFixed(1)}M</strong>
-              </p>
-              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.9rem' }}>
-                Videos: <strong>{sub.videoCount}</strong>
-              </p>
-            </div>
-          ))}
+      {/* Embedded In-Browser Video Player */}
+      {activeVideoId && (
+        <section style={{ marginBottom: '2rem', background: '#000', borderRadius: '12px', overflow: 'hidden', border: '1px solid #3f3f46' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b', padding: '0.75rem 1rem' }}>
+            <span style={{ color: '#fff', fontWeight: 'bold' }}>📺 Media Player</span>
+            <button onClick={() => setActiveVideoId(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.2rem', cursor: 'pointer' }}>✖ Close Player</button>
+          </div>
+          <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+            <iframe
+              src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`}
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+            ></iframe>
+          </div>
+        </section>
+      )}
+
+      {/* Main Explorer Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '320px 1fr' : '1fr', gap: '2rem' }}>
+        {/* Subscription Channels Column */}
+        <div>
+          <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.4rem' }}>Subscribed Channels</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {subscriptions.map((sub) => (
+              <div
+                key={sub.channelId}
+                onClick={() => selectChannel(sub)}
+                style={{
+                  background: selectedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
+                  padding: '1rem',
+                  borderRadius: '10px',
+                  border: '1px solid #27272a',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <h4 style={{ margin: '0 0 0.4rem 0', color: '#ffffff' }}>{sub.title}</h4>
+                <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
+                  {(sub.subscriberCount / 1000000).toFixed(1)}M subscribers • {sub.videoCount} videos
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
-      </section>
+
+        {/* Selected Channel Detailed Content Inspector */}
+        {selectedChannel && (
+          <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedChannel.title}</h2>
+            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedChannel.description}</p>
+
+            {/* Navigation Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
+              {['videos', 'shorts', 'playlists'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => loadChannelContent(selectedChannel.channelId, tab)}
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === tab ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    textTransform: 'capitalize',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Content List */}
+            {channelContent.length === 0 ? (
+              <p style={{ color: '#71717a' }}>No {activeTab} indexed yet. Click "Log in with Google" to trigger live sync.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+                {channelContent.map((item, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => item.videoId && setActiveVideoId(item.videoId)}
+                    style={{ background: '#09090b', padding: '1rem', borderRadius: '8px', border: '1px solid #27272a', cursor: 'pointer' }}
+                  >
+                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title}</h5>
+                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play in App</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

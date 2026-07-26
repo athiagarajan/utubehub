@@ -1,7 +1,13 @@
 package com.utubehub.controller;
 
+import com.utubehub.entity.ChannelEntity;
+import com.utubehub.entity.PlaylistEntity;
+import com.utubehub.entity.VideoEntity;
+import com.utubehub.service.YouTubeService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,28 +16,73 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/subscriptions")
-@Tag(name = "YouTube Subscriptions", description = "Endpoints for fetching and managing YouTube subscribed channels and metadata")
+@Tag(name = "YouTube Subscriptions", description = "Endpoints for retrieving subscriptions, channel videos, shorts, playlists, and syncing with YouTube API")
 public class SubscriptionController {
 
+    private final YouTubeService youTubeService;
+
+    @Autowired
+    public SubscriptionController(YouTubeService youTubeService) {
+        this.youTubeService = youTubeService;
+    }
+
     @GetMapping
-    @Operation(summary = "List Subscriptions", description = "Fetches paginated list of subscribed YouTube channels from local cache or YouTube API.")
-    public ResponseEntity<List<Map<String, Object>>> getSubscriptions() {
-        // Initial sample response structure for testing/scaffolding
-        List<Map<String, Object>> mockSubscriptions = List.of(
-            Map.of(
-                "channelId", "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-                "title", "Google Developers",
-                "subscriberCount", 2400000,
-                "videoCount", 5200,
-                "thumbnailUrl", "https://yt3.googleusercontent.com/ytc/AIdro_k..."
-            )
-        );
-        return ResponseEntity.ok(mockSubscriptions);
+    @Operation(summary = "List All Subscriptions", description = "Fetches all user subscribed YouTube channels cached in local PostgreSQL database.")
+    public ResponseEntity<List<ChannelEntity>> getSubscriptions() {
+        List<ChannelEntity> channels = youTubeService.getLocalSubscriptions();
+        if (channels.isEmpty()) {
+            // Seed initial display channel if DB is empty
+            ChannelEntity demoChannel = ChannelEntity.builder()
+                    .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
+                    .title("Google Developers")
+                    .description("The official Google Developers channel for tech videos and tutorials.")
+                    .thumbnailUrl("https://yt3.googleusercontent.com/ytc/AIdro_k...")
+                    .subscriberCount(2400000L)
+                    .videoCount(5200L)
+                    .build();
+            return ResponseEntity.ok(List.of(demoChannel));
+        }
+        return ResponseEntity.ok(channels);
     }
 
     @PostMapping("/sync")
-    @Operation(summary = "Sync Subscriptions", description = "Triggers an incremental sync of user YouTube subscriptions into local PostgreSQL cache.")
-    public ResponseEntity<Map<String, String>> syncSubscriptions() {
-        return ResponseEntity.ok(Map.of("message", "Subscription sync triggered successfully"));
+    @Operation(summary = "Sync Subscriptions with YouTube API", description = "Fetches live subscriptions from YouTube Data API v3 using user OAuth access token and updates local database.")
+    public ResponseEntity<?> syncSubscriptions(
+            @RequestHeader(name = "Authorization", required = false) String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "error", "Unauthorized",
+                    "message", "Bearer OAuth Access Token is required to sync with YouTube API."
+            ));
+        }
+
+        String accessToken = authHeader.substring(7);
+        try {
+            List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Successfully synced " + synced.size() + " subscriptions from YouTube.",
+                    "channelsSynced", synced.size()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Sync Failed",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/{channelId}/videos")
+    @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific subscribed channel, with an optional filter for Shorts.")
+    public ResponseEntity<List<VideoEntity>> getChannelVideos(
+            @PathVariable String channelId,
+            @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
+            @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly) {
+        return ResponseEntity.ok(youTubeService.getChannelVideos(channelId, shortsOnly));
+    }
+
+    @GetMapping("/{channelId}/playlists")
+    @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
+    public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(@PathVariable String channelId) {
+        return ResponseEntity.ok(youTubeService.getChannelPlaylists(channelId));
     }
 }

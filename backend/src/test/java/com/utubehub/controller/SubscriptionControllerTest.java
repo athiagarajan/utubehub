@@ -29,10 +29,17 @@ class SubscriptionControllerTest {
     }
 
     @Test
-    void syncSubscriptionsShouldReturn200OK() throws Exception {
+    void syncSubscriptionsWithoutAuthHeaderShouldReturn401() throws Exception {
         mockMvc.perform(post("/api/v1/subscriptions/sync")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Subscription sync triggered successfully"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("Unauthorized"));
+    }
+
+    @Test
+    void getChannelVideosShouldReturn200OK() throws Exception {
+        mockMvc.perform(get("/api/v1/subscriptions/UC_x5XG1OV2P6uZZ5FSM9Ttw/videos")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
     }
 }
