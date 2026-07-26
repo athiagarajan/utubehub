@@ -20,6 +20,6 @@ describe('UTubeHub App Component', () => {
 
     expect(screen.getByText(/UTubeHub/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Subscribed Channels/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Videos Uploaded/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your Contents/i)).toBeInTheDocument();
   });
 });

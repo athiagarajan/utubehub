@@ -6,16 +6,19 @@ export default function App() {
   const [ownChannel, setOwnChannel] = useState(null);
   const [mainNavTab, setMainNavTab] = useState('subscribed'); // 'subscribed' | 'uploaded'
   
-  // Content states
+  // Subscribed channels state
   const [selectedSubscribedChannel, setSelectedSubscribedChannel] = useState(null);
   const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
   const [subscribedContent, setSubscribedContent] = useState([]);
 
-  const [uploadedTab, setUploadedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
-  const [uploadedContent, setUploadedContent] = useState([]);
+  // Your Contents state
+  const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts'
+  const [yourContentData, setYourContentData] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
+  const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
     // Check Backend Health Status
@@ -42,10 +45,7 @@ export default function App() {
           selectSubscribedChannel(subbed[0], 'videos');
         }
 
-        if (mine) {
-          loadUploadedContent(mine.channelId, 'videos');
-        }
-
+        loadYourContent('videos');
         return { mine, subbed };
       })
       .catch((err) => console.error('Failed to load channels:', err));
@@ -55,12 +55,30 @@ export default function App() {
     fetch('/api/v1/auth/demo-login', { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
+        setUserToken(data.accessToken);
         alert(`Demo Mode Activated!\nToken: ${data.accessToken}\n\nCopy this token into Swagger UI's Authorize button.`);
-        fetch('/api/v1/subscriptions/sync', {
+        fetch('/api/v1/user/sync', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${data.accessToken}` }
         })
         .then(() => loadAllChannels());
+      });
+  };
+
+  const syncYourContents = () => {
+    setIsSyncing(true);
+    const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
+
+    fetch('/api/v1/user/sync', { method: 'POST', headers })
+      .then((res) => res.json())
+      .then((data) => {
+        setIsSyncing(false);
+        alert(data.message || 'Sync completed!');
+        loadAllChannels();
+      })
+      .catch((err) => {
+        setIsSyncing(false);
+        console.error('Sync error:', err);
       });
   };
 
@@ -81,29 +99,19 @@ export default function App() {
       .catch((err) => console.error(`Failed to load subscribed ${tab}:`, err));
   };
 
-  const loadUploadedContent = (channelId, tab = 'videos') => {
-    setUploadedTab(tab);
-
-    let endpoint = `/api/v1/subscriptions/${channelId}/videos`;
-    if (tab === 'shorts') {
-      endpoint = `/api/v1/subscriptions/${channelId}/videos?shortsOnly=true`;
-    } else if (tab === 'playlists') {
-      endpoint = `/api/v1/subscriptions/${channelId}/playlists`;
-    }
+  const loadYourContent = (tab = 'videos') => {
+    setYourContentTab(tab);
+    let endpoint = `/api/v1/user/${tab}`;
 
     fetch(endpoint)
       .then((res) => res.json())
-      .then((data) => setUploadedContent(data))
-      .catch((err) => console.error(`Failed to load uploaded ${tab}:`, err));
+      .then((data) => setYourContentData(data))
+      .catch((err) => console.error(`Failed to load user ${tab}:`, err));
   };
 
   const switchToUploadedTab = () => {
     setMainNavTab('uploaded');
-    loadAllChannels().then(({ mine }) => {
-      if (mine) {
-        loadUploadedContent(mine.channelId, uploadedTab);
-      }
-    });
+    loadYourContent(yourContentTab);
   };
 
   const switchToSubscribedTab = () => {
@@ -188,7 +196,7 @@ export default function App() {
             transition: 'all 0.2s ease'
           }}
         >
-          👤 Videos Uploaded {ownChannel ? `(${ownChannel.title})` : ''}
+          👤 Your Contents {ownChannel ? `(${ownChannel.title})` : ''}
         </button>
       </nav>
 
@@ -198,7 +206,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across {mainNavTab === 'uploaded' ? 'your uploaded videos' : 'all subscribed channels'} (e.g. <i>"Find React tutorials under 15 mins"</i>)
+          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} (e.g. <i>"Find React tutorials under 15 mins"</i>)
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -332,60 +340,69 @@ export default function App() {
         </div>
       )}
 
-      {/* PAGE VIEW 2: Videos Uploaded Page (User Own Account) */}
+      {/* PAGE VIEW 2: Your Contents Page (User Own Account) */}
       {mainNavTab === 'uploaded' && (
         <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #059669' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
               <h2 style={{ margin: '0 0 0.4rem 0', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                👤 {ownChannel ? ownChannel.title : 'Videos Uploaded by Your Account'}
+                👤 Your Contents {ownChannel ? `(${ownChannel.title})` : ''}
               </h2>
               <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.9rem' }}>
-                {ownChannel ? ownChannel.description : 'Your uploaded videos, Shorts, and playlists'}
+                {ownChannel ? ownChannel.description : 'Your uploaded videos, playlists, live streams, and community posts'}
               </p>
             </div>
-            <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
-              YOUR ACCOUNT
-            </span>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <button
+                onClick={syncYourContents}
+                disabled={isSyncing}
+                style={{ background: '#059669', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {isSyncing ? '🔄 Syncing...' : '🔄 Sync Your Contents'}
+              </button>
+              <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
+                YOUR ACCOUNT
+              </span>
+            </div>
           </div>
 
-          {/* Sub-Tabs for Videos, Shorts, Playlists */}
-          {ownChannel && (
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
-              {['videos', 'shorts', 'playlists'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => loadUploadedContent(ownChannel.channelId, tab)}
-                  style={{
-                    padding: '0.5rem 1.25rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: uploadedTab === tab ? '#059669' : '#27272a',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    textTransform: 'capitalize',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Sub-Tabs for Videos, Playlists, Live, Posts */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
+            {['videos', 'playlists', 'live', 'posts'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => loadYourContent(tab)}
+                style={{
+                  padding: '0.5.rem 1.25rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: yourContentTab === tab ? '#059669' : '#27272a',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  textTransform: 'capitalize',
+                  cursor: 'pointer'
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
-          {/* Uploaded Content Grid */}
-          {uploadedContent.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {uploadedTab} found for your account. Log in with Google to sync your uploads.</p>
+          {/* Your Contents Grid */}
+          {yourContentData.length === 0 ? (
+            <p style={{ color: '#71717a' }}>No {yourContentTab} found for your account. Click "🔄 Sync Your Contents" or Log in with Google.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
-              {uploadedContent.map((item, idx) => (
+              {yourContentData.map((item, idx) => (
                 <div
                   key={idx}
                   onClick={() => item.videoId && setActiveVideoId(item.videoId)}
                   style={{ background: '#09090b', padding: '1.2rem', borderRadius: '10px', border: '1px solid #27272a', cursor: 'pointer' }}
                 >
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1rem' }}>{item.title}</h4>
-                  <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>▶ Play Video</p>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1rem' }}>{item.title || item.content}</h4>
+                  <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
+                    {item.videoId ? '▶ Play Video' : (item.status ? `Stream Status: ${item.status}` : 'Community Update')}
+                  </p>
                 </div>
               ))}
             </div>

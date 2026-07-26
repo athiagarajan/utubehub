@@ -6,12 +6,8 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.*;
-import com.utubehub.entity.ChannelEntity;
-import com.utubehub.entity.PlaylistEntity;
-import com.utubehub.entity.VideoEntity;
-import com.utubehub.repository.ChannelRepository;
-import com.utubehub.repository.PlaylistRepository;
-import com.utubehub.repository.VideoRepository;
+import com.utubehub.entity.*;
+import com.utubehub.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +25,8 @@ public class YouTubeService {
     private final ChannelRepository channelRepository;
     private final VideoRepository videoRepository;
     private final PlaylistRepository playlistRepository;
+    private final LiveStreamRepository liveStreamRepository;
+    private final PostRepository postRepository;
 
     @Autowired
     public YouTubeService(
@@ -36,12 +34,16 @@ public class YouTubeService {
             JsonFactory jsonFactory,
             ChannelRepository channelRepository,
             VideoRepository videoRepository,
-            PlaylistRepository playlistRepository) {
+            PlaylistRepository playlistRepository,
+            LiveStreamRepository liveStreamRepository,
+            PostRepository postRepository) {
         this.httpTransport = httpTransport;
         this.jsonFactory = jsonFactory;
         this.channelRepository = channelRepository;
         this.videoRepository = videoRepository;
         this.playlistRepository = playlistRepository;
+        this.liveStreamRepository = liveStreamRepository;
+        this.postRepository = postRepository;
     }
 
     private YouTube createYouTubeClient(String accessToken) {
@@ -87,8 +89,8 @@ public class YouTubeService {
 
             ChannelEntity entity = ChannelEntity.builder()
                     .channelId(myChannel.getId())
-                    .title("Your Videos (" + (snippet != null ? snippet.getTitle() : "My Channel") + ")")
-                    .description(snippet != null ? snippet.getDescription() : "Videos uploaded by your account")
+                    .title((snippet != null ? snippet.getTitle() : "My Account Uploads"))
+                    .description(snippet != null ? snippet.getDescription() : "Your uploaded videos, playlists, live streams, and posts")
                     .thumbnailUrl(thumbnailUrl)
                     .subscriberCount(subscriberCount)
                     .videoCount(videoCount)
@@ -98,7 +100,45 @@ public class YouTubeService {
                     .build();
 
             ChannelEntity saved = channelRepository.save(entity);
+
+            // Sync videos, shorts, playlists
             syncChannelContent(accessToken, myChannel.getId());
+
+            // Sync Live Streams
+            try {
+                YouTube.LiveBroadcasts.List broadcastReq = youtube.liveBroadcasts()
+                        .list(List.of("snippet", "status"))
+                        .setBroadcastStatus("all")
+                        .setMaxResults(25L);
+
+                LiveBroadcastListResponse broadcastRes = broadcastReq.execute();
+                List<LiveBroadcast> broadcasts = broadcastRes.getItems();
+                if (broadcasts != null) {
+                    for (LiveBroadcast lb : broadcasts) {
+                        LiveBroadcastSnippet bSnippet = lb.getSnippet();
+                        LiveBroadcastStatus bStatus = lb.getStatus();
+
+                        String bThumb = null;
+                        if (bSnippet != null && bSnippet.getThumbnails() != null && bSnippet.getThumbnails().getDefault() != null) {
+                            bThumb = bSnippet.getThumbnails().getDefault().getUrl();
+                        }
+
+                        LiveStreamEntity streamEntity = LiveStreamEntity.builder()
+                                .streamId(lb.getId())
+                                .channelId(myChannel.getId())
+                                .title(bSnippet != null ? bSnippet.getTitle() : "Live Stream")
+                                .description(bSnippet != null ? bSnippet.getDescription() : "")
+                                .thumbnailUrl(bThumb)
+                                .status(bStatus != null ? bStatus.getLifeCycleStatus() : "completed")
+                                .build();
+
+                        liveStreamRepository.save(streamEntity);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Notice: Live broadcasts fetch notice: " + e.getMessage());
+            }
+
             return saved;
         }
         return null;
@@ -335,5 +375,13 @@ public class YouTubeService {
 
     public List<PlaylistEntity> getChannelPlaylists(String channelId) {
         return playlistRepository.findByChannelId(channelId);
+    }
+
+    public List<LiveStreamEntity> getChannelLiveStreams(String channelId) {
+        return liveStreamRepository.findByChannelId(channelId);
+    }
+
+    public List<PostEntity> getChannelPosts(String channelId) {
+        return postRepository.findByChannelId(channelId);
     }
 }
