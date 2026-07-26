@@ -19,8 +19,7 @@ describe('UTubeHub App Component', () => {
     render(<App />);
 
     expect(screen.getByText(/UTubeHub/i)).toBeInTheDocument();
-    expect(screen.getByText(/Active Account:/i)).toBeInTheDocument();
-    expect(screen.getByText(/User 1 \(Tech\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/User 2 \(Gaming\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/user1@gmail.com/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/user2@gmail.com/i)).toBeInTheDocument();
   });
 });

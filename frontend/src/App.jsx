@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
-  const [activeUser, setActiveUser] = useState('user1'); // 'user1' | 'user2' | 'google'
+  const [activeUser, setActiveUser] = useState('user1@gmail.com');
   const [userToken, setUserToken] = useState(null);
 
   const [subscriptions, setSubscriptions] = useState([]);
@@ -18,10 +18,12 @@ export default function App() {
   // Your Contents state
   const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts'
   const [yourContentData, setYourContentData] = useState([]);
+  const [isYourContentLoading, setIsYourContentLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
+  const [customEmailInput, setCustomEmailInput] = useState('');
 
   useEffect(() => {
     // Check Backend Health Status
@@ -34,15 +36,17 @@ export default function App() {
     loadAllChannels(activeUser);
   }, []);
 
-  const switchUserAccount = (userId) => {
-    setActiveUser(userId);
-    loadAllChannels(userId).then(() => {
+  const switchUserAccount = (userAccount) => {
+    setActiveUser(userAccount);
+    loadAllChannels(userAccount).then(() => {
       // Auto Sync all content on user switch
-      triggerFullSync(userId);
+      triggerFullSync(userAccount);
     });
   };
 
-  const loadAllChannels = (userId = activeUser) => {
+  const loadAllChannels = (userAccount = activeUser) => {
+    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
+
     return fetch(`/api/v1/subscriptions?userId=${userId}`)
       .then((res) => res.json())
       .then((data) => {
@@ -59,15 +63,16 @@ export default function App() {
           setSubscribedContent([]);
         }
 
-        loadYourContent('videos');
+        loadYourContent('videos', userAccount);
         return { mine, subbed };
       })
       .catch((err) => console.error('Failed to load channels:', err));
   };
 
-  const triggerFullSync = (userId = activeUser) => {
+  const triggerFullSync = (userAccount = activeUser) => {
     setIsSyncing(true);
     setIsSubscribedSyncing(true);
+    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     Promise.all([
@@ -77,7 +82,7 @@ export default function App() {
     .then(() => {
       setIsSyncing(false);
       setIsSubscribedSyncing(false);
-      loadAllChannels(userId);
+      loadAllChannels(userAccount);
     })
     .catch((err) => {
       setIsSyncing(false);
@@ -91,16 +96,17 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         setUserToken(data.accessToken);
-        alert(`Demo Mode Activated for ${activeUser.toUpperCase()}!\nToken: ${data.accessToken}`);
+        alert(`Demo Mode Activated for ${activeUser}!\nToken: ${data.accessToken}`);
         triggerFullSync(activeUser);
       });
   };
 
   const syncSubscribedChannels = () => {
     setIsSubscribedSyncing(true);
+    const userId = activeUser.includes('user2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/subscriptions/sync?userId=${activeUser}`, { method: 'POST', headers })
+    fetch(`/api/v1/subscriptions/sync?userId=${userId}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSubscribedSyncing(false);
@@ -115,9 +121,10 @@ export default function App() {
 
   const syncYourContents = () => {
     setIsSyncing(true);
+    const userId = activeUser.includes('user2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/user/sync?userId=${activeUser}`, { method: 'POST', headers })
+    fetch(`/api/v1/user/sync?userId=${userId}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSyncing(false);
@@ -147,19 +154,28 @@ export default function App() {
       .catch((err) => console.error(`Failed to load subscribed ${tab}:`, err));
   };
 
-  const loadYourContent = (tab = 'videos') => {
+  const loadYourContent = (tab = 'videos', userAccount = activeUser) => {
     setYourContentTab(tab);
-    let endpoint = `/api/v1/user/${tab}`;
+    setIsYourContentLoading(true);
+    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
+    let endpoint = `/api/v1/user/${tab}?userId=${userId}`;
 
     fetch(endpoint)
       .then((res) => res.json())
-      .then((data) => setYourContentData(data))
-      .catch((err) => console.error(`Failed to load user ${tab}:`, err));
+      .then((data) => {
+        setYourContentData(Array.isArray(data) ? data : []);
+        setIsYourContentLoading(false);
+      })
+      .catch((err) => {
+        console.error(`Failed to load user ${tab}:`, err);
+        setYourContentData([]);
+        setIsYourContentLoading(false);
+      });
   };
 
   const switchToUploadedTab = () => {
     setMainNavTab('uploaded');
-    loadYourContent(yourContentTab);
+    loadYourContent(yourContentTab, activeUser);
   };
 
   const switchToSubscribedTab = () => {
@@ -171,9 +187,17 @@ export default function App() {
     }
   };
 
+  const handleAddCustomAccount = (e) => {
+    e.preventDefault();
+    if (customEmailInput.trim()) {
+      switchUserAccount(customEmailInput.trim());
+      setCustomEmailInput('');
+    }
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header Bar with Multi-User Account Switcher */}
+      {/* Header Bar with Multi-User Email Account Switcher */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -183,13 +207,13 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-          {/* User Account Switcher Selector */}
+          {/* User Account Switcher Selector with Email Accounts */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
             <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Active Account:</span>
             <button
-              onClick={() => switchUserAccount('user1')}
+              onClick={() => switchUserAccount('user1@gmail.com')}
               style={{
-                background: activeUser === 'user1' ? '#2563eb' : '#27272a',
+                background: activeUser === 'user1@gmail.com' ? '#2563eb' : '#27272a',
                 color: '#fff',
                 border: 'none',
                 padding: '0.3rem 0.75rem',
@@ -199,12 +223,12 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              User 1 (Tech)
+              user1@gmail.com
             </button>
             <button
-              onClick={() => switchUserAccount('user2')}
+              onClick={() => switchUserAccount('user2@gmail.com')}
               style={{
-                background: activeUser === 'user2' ? '#059669' : '#27272a',
+                background: activeUser === 'user2@gmail.com' ? '#059669' : '#27272a',
                 color: '#fff',
                 border: 'none',
                 padding: '0.3rem 0.75rem',
@@ -214,8 +238,22 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              User 2 (Gaming)
+              user2@gmail.com
             </button>
+
+            {/* Custom Email Input */}
+            <form onSubmit={handleAddCustomAccount} style={{ display: 'flex', gap: '0.3rem' }}>
+              <input
+                type="email"
+                placeholder="Enter email..."
+                value={customEmailInput}
+                onChange={(e) => setCustomEmailInput(e.target.value)}
+                style={{ background: '#09090b', color: '#fff', border: '1px solid #3f3f46', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', width: '130px' }}
+              />
+              <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
+                Switch
+              </button>
+            </form>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -292,7 +330,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active profile <b>{activeUser.toUpperCase()}</b>
+          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active account: <b>{activeUser}</b>
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -456,7 +494,7 @@ export default function App() {
                 {isSyncing ? '🔄 Syncing...' : '🔄 Sync Your Contents'}
               </button>
               <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
-                ACTIVE: {activeUser.toUpperCase()}
+                ACTIVE: {activeUser}
               </span>
             </div>
           </div>
@@ -466,7 +504,7 @@ export default function App() {
             {['videos', 'playlists', 'live', 'posts'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => loadYourContent(tab)}
+                onClick={() => loadYourContent(tab, activeUser)}
                 style={{
                   padding: '0.5rem 1.25rem',
                   borderRadius: '6px',
@@ -484,8 +522,10 @@ export default function App() {
           </div>
 
           {/* Your Contents Grid */}
-          {yourContentData.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUser.toUpperCase()}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
+          {isYourContentLoading ? (
+            <p style={{ color: '#4ade80' }}>⏳ Loading your {yourContentTab}...</p>
+          ) : yourContentData.length === 0 ? (
+            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUser}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
               {yourContentData.map((item, idx) => (
