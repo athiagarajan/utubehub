@@ -15,19 +15,28 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/",
                     "/swagger-ui.html",
                     "/swagger-ui/**",
+                    "/v3/api-docs",
                     "/v3/api-docs/**",
+                    "/swagger-resources/**",
+                    "/webjars/**",
                     "/h2-console/**",
-                    "/api/v1/health"
+                    "/error",
+                    "/api/v1/health",
+                    "/api/v1/auth/**",
+                    "/api/v1/subscriptions/**"
                 ).permitAll()
-                .anyRequest().permitAll() // Allow development access; easily protectable per endpoint
+                .anyRequest().permitAll()
             )
-            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // Allow H2 console frames
-            .oauth2Login(Customizer.withDefaults());
+            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+            .oauth2Login(oauth2 -> oauth2
+                .defaultSuccessUrl("http://localhost:5173", true)
+            );
 
         return http.build();
     }
