@@ -10,13 +10,10 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -24,6 +21,8 @@ import java.util.Map;
 public class AuthController {
 
     private final OAuth2AuthorizedClientService authorizedClientService;
+    private static final Map<String, Map<String, Object>> authenticatedAccounts = new ConcurrentHashMap<>();
+    private static String activeAccountEmail = null;
 
     @Autowired
     public AuthController(OAuth2AuthorizedClientService authorizedClientService) {
@@ -72,24 +71,45 @@ public class AuthController {
     }
 
     @GetMapping("/user")
-    @Operation(summary = "Get Authenticated User Profile", description = "Returns profile details (name, email, avatar) of the currently authenticated Google user.")
+    @Operation(summary = "Get Authenticated User Profile", description = "Returns profile details (name, email, avatar) of the currently authenticated Google user and all logged-in Google accounts.")
     public ResponseEntity<?> getUserProfile(@AuthenticationPrincipal OAuth2User oauth2User) {
-        if (oauth2User == null) {
-            Map<String, Object> unauth = new HashMap<>();
-            unauth.put("authenticated", false);
-            unauth.put("message", "User is unauthenticated.");
-            return ResponseEntity.ok(unauth);
+        if (oauth2User != null) {
+            String name = oauth2User.getAttribute("name") != null ? oauth2User.getAttribute("name").toString() : "Google User";
+            String email = oauth2User.getAttribute("email") != null ? oauth2User.getAttribute("email").toString() : "user@gmail.com";
+            String picture = oauth2User.getAttribute("picture") != null ? oauth2User.getAttribute("picture").toString() : "";
+
+            Map<String, Object> accountInfo = new HashMap<>();
+            accountInfo.put("name", name);
+            accountInfo.put("email", email);
+            accountInfo.put("picture", picture);
+
+            authenticatedAccounts.put(email, accountInfo);
+            activeAccountEmail = email;
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("authenticated", true);
+            response.put("email", email);
+            response.put("name", name);
+            response.put("picture", picture);
+            response.put("accounts", new ArrayList<>(authenticatedAccounts.values()));
+            return ResponseEntity.ok(response);
         }
 
-        String name = oauth2User.getAttribute("name") != null ? oauth2User.getAttribute("name").toString() : "Google User";
-        String email = oauth2User.getAttribute("email") != null ? oauth2User.getAttribute("email").toString() : "user@gmail.com";
-        String picture = oauth2User.getAttribute("picture") != null ? oauth2User.getAttribute("picture").toString() : "";
+        if (activeAccountEmail != null && authenticatedAccounts.containsKey(activeAccountEmail)) {
+            Map<String, Object> activeInfo = authenticatedAccounts.get(activeAccountEmail);
+            Map<String, Object> response = new HashMap<>();
+            response.put("authenticated", true);
+            response.put("email", activeInfo.get("email"));
+            response.put("name", activeInfo.get("name"));
+            response.put("picture", activeInfo.get("picture"));
+            response.put("accounts", new ArrayList<>(authenticatedAccounts.values()));
+            return ResponseEntity.ok(response);
+        }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("authenticated", true);
-        response.put("name", name);
-        response.put("email", email);
-        response.put("picture", picture);
-        return ResponseEntity.ok(response);
+        Map<String, Object> unauth = new HashMap<>();
+        unauth.put("authenticated", false);
+        unauth.put("accounts", new ArrayList<>(authenticatedAccounts.values()));
+        unauth.put("message", "No active Google OAuth session.");
+        return ResponseEntity.ok(unauth);
     }
 }

@@ -13,7 +13,7 @@ describe('UTubeHub App Component', () => {
       }
       if (url.includes('/api/v1/auth/user')) {
         return Promise.resolve({
-          json: () => Promise.resolve({ authenticated: true, email: 'thiagu.test@gmail.com' }),
+          json: () => Promise.resolve({ authenticated: true, email: 'atrteach@gmail.com', name: 'Thiagu' }),
         });
       }
       return Promise.resolve({
@@ -24,7 +24,7 @@ describe('UTubeHub App Component', () => {
     render(<App />);
 
     expect(screen.getAllByText(/UTubeHub/i)[0]).toBeInTheDocument();
-    expect(screen.getByText(/👤 Active User Account:/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/athiagarajan@gmail.com/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/👤 Google Account:/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/atrteach@gmail.com/i)[0]).toBeInTheDocument();
   });
 });

@@ -4,6 +4,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -16,7 +19,11 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ClientRegistrationRepository clientRegistrationRepository) throws Exception {
+        DefaultOAuth2AuthorizationRequestResolver resolver =
+                new DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository, "/oauth2/authorization");
+        resolver.setAuthorizationRequestCustomizer(customizer -> customizer.additionalParameters(params -> params.put("prompt", "select_account")));
+
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -39,6 +46,7 @@ public class SecurityConfig {
             )
             .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             .oauth2Login(oauth2 -> oauth2
+                .authorizationEndpoint(authEndpoint -> authEndpoint.authorizationRequestResolver(resolver))
                 .defaultSuccessUrl("http://localhost:5173", true)
             );
 
@@ -48,7 +56,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*")); // Allow local dev origins (localhost & 127.0.0.1)
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
