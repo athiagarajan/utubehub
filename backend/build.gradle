@@ -1,0 +1,50 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.2'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.utubehub'
+version = '0.0.1-SNAPSHOT'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(19)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Swagger UI / OpenAPI 3
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2' // In-memory fallback for local dev/testing
+
+    // Google & YouTube Data API
+    implementation 'com.google.api-client:google-api-client:2.6.0'
+    implementation 'com.google.apis:google-api-services-youtube:v3-rev20240514-2.0.0'
+
+    // Lombok (Optional / Utility)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
