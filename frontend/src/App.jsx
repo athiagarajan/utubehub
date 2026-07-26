@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
+  const [activeUser, setActiveUser] = useState('user1'); // 'user1' | 'user2' | 'google'
+  const [userToken, setUserToken] = useState(null);
+
   const [subscriptions, setSubscriptions] = useState([]);
   const [ownChannel, setOwnChannel] = useState(null);
   const [mainNavTab, setMainNavTab] = useState('subscribed'); // 'subscribed' | 'uploaded'
@@ -19,7 +22,6 @@ export default function App() {
 
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
-  const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
     // Check Backend Health Status
@@ -28,12 +30,20 @@ export default function App() {
       .then((data) => setHealthStatus(`Backend Online (${data.service} v${data.version})`))
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
-    // Fetch Channels catalog
-    loadAllChannels();
+    // Fetch Channels catalog for current user
+    loadAllChannels(activeUser);
   }, []);
 
-  const loadAllChannels = () => {
-    return fetch('/api/v1/subscriptions')
+  const switchUserAccount = (userId) => {
+    setActiveUser(userId);
+    loadAllChannels(userId).then(() => {
+      // Auto Sync all content on user switch
+      triggerFullSync(userId);
+    });
+  };
+
+  const loadAllChannels = (userId = activeUser) => {
+    return fetch(`/api/v1/subscriptions?userId=${userId}`)
       .then((res) => res.json())
       .then((data) => {
         const mine = data.find((ch) => ch.isMine);
@@ -42,8 +52,11 @@ export default function App() {
         setOwnChannel(mine || null);
         setSubscriptions(subbed);
 
-        if (subbed.length > 0 && !selectedSubscribedChannel) {
+        if (subbed.length > 0) {
           selectSubscribedChannel(subbed[0], 'videos');
+        } else {
+          setSelectedSubscribedChannel(null);
+          setSubscribedContent([]);
         }
 
         loadYourContent('videos');
@@ -52,17 +65,34 @@ export default function App() {
       .catch((err) => console.error('Failed to load channels:', err));
   };
 
+  const triggerFullSync = (userId = activeUser) => {
+    setIsSyncing(true);
+    setIsSubscribedSyncing(true);
+    const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
+
+    Promise.all([
+      fetch(`/api/v1/subscriptions/sync?userId=${userId}`, { method: 'POST', headers }),
+      fetch(`/api/v1/user/sync?userId=${userId}`, { method: 'POST', headers })
+    ])
+    .then(() => {
+      setIsSyncing(false);
+      setIsSubscribedSyncing(false);
+      loadAllChannels(userId);
+    })
+    .catch((err) => {
+      setIsSyncing(false);
+      setIsSubscribedSyncing(false);
+      console.error('Auto-sync error:', err);
+    });
+  };
+
   const triggerDemoLogin = () => {
     fetch('/api/v1/auth/demo-login', { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
         setUserToken(data.accessToken);
-        alert(`Demo Mode Activated!\nToken: ${data.accessToken}\n\nCopy this token into Swagger UI's Authorize button.`);
-        fetch('/api/v1/user/sync', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${data.accessToken}` }
-        })
-        .then(() => loadAllChannels());
+        alert(`Demo Mode Activated for ${activeUser.toUpperCase()}!\nToken: ${data.accessToken}`);
+        triggerFullSync(activeUser);
       });
   };
 
@@ -70,12 +100,12 @@ export default function App() {
     setIsSubscribedSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch('/api/v1/subscriptions/sync', { method: 'POST', headers })
+    fetch(`/api/v1/subscriptions/sync?userId=${activeUser}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSubscribedSyncing(false);
         alert(data.message || 'Subscribed channels sync completed!');
-        loadAllChannels();
+        loadAllChannels(activeUser);
       })
       .catch((err) => {
         setIsSubscribedSyncing(false);
@@ -87,12 +117,12 @@ export default function App() {
     setIsSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch('/api/v1/user/sync', { method: 'POST', headers })
+    fetch(`/api/v1/user/sync?userId=${activeUser}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSyncing(false);
         alert(data.message || 'Sync completed!');
-        loadAllChannels();
+        loadAllChannels(activeUser);
       })
       .catch((err) => {
         setIsSyncing(false);
@@ -143,38 +173,76 @@ export default function App() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header Bar */}
+      {/* Header Bar with Multi-User Account Switcher */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span>▶</span> UTubeHub
           </h1>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa' }}>YouTube Subscriptions, Media Player & AI Intelligence Hub</p>
+          <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa' }}>YouTube Subscriptions, Media Player & Multi-Account Intelligence Hub</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ fontSize: '0.85rem', color: healthStatus.includes('Online') ? '#4ade80' : '#f87171' }}>
-            ● {healthStatus}
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+          {/* User Account Switcher Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
+            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Active Account:</span>
+            <button
+              onClick={() => switchUserAccount('user1')}
+              style={{
+                background: activeUser === 'user1' ? '#2563eb' : '#27272a',
+                color: '#fff',
+                border: 'none',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              User 1 (Tech)
+            </button>
+            <button
+              onClick={() => switchUserAccount('user2')}
+              style={{
+                background: activeUser === 'user2' ? '#059669' : '#27272a',
+                color: '#fff',
+                border: 'none',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              User 2 (Gaming)
+            </button>
           </div>
-          <button
-            onClick={triggerDemoLogin}
-            style={{ color: '#ffffff', fontSize: '0.85rem', border: 'none', background: '#059669', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-          >
-            🧪 Demo Mode Auth
-          </button>
-          <a
-            href="http://localhost:8080/oauth2/authorization/google"
-            style={{ color: '#ffffff', fontSize: '0.85rem', textDecoration: 'none', background: '#2563eb', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 'bold' }}
-          >
-            🔑 Log in with Google
-          </a>
-          <a
-            href="/swagger-ui.html"
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: '#38bdf8', fontSize: '0.85rem', textDecoration: 'none', background: '#1e293b', padding: '0.5rem 0.9rem', borderRadius: '8px', border: '1px solid #334155' }}
-          >
-            📄 Swagger Docs
-          </a>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ fontSize: '0.8rem', color: healthStatus.includes('Online') ? '#4ade80' : '#f87171' }}>
+              ● {healthStatus}
+            </div>
+            <button
+              onClick={triggerDemoLogin}
+              style={{ color: '#ffffff', fontSize: '0.8rem', border: 'none', background: '#059669', padding: '0.4rem 0.75rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              🧪 Demo Auth
+            </button>
+            <a
+              href="http://localhost:8080/oauth2/authorization/google"
+              style={{ color: '#ffffff', fontSize: '0.8rem', textDecoration: 'none', background: '#2563eb', padding: '0.4rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}
+            >
+              🔑 Log in Google
+            </a>
+            <a
+              href="/swagger-ui.html"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#38bdf8', fontSize: '0.8rem', textDecoration: 'none', background: '#1e293b', padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid #334155' }}
+            >
+              📄 Swagger
+            </a>
+          </div>
         </div>
       </header>
 
@@ -224,7 +292,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} (e.g. <i>"Find React tutorials under 15 mins"</i>)
+          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active profile <b>{activeUser.toUpperCase()}</b>
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -388,7 +456,7 @@ export default function App() {
                 {isSyncing ? '🔄 Syncing...' : '🔄 Sync Your Contents'}
               </button>
               <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
-                YOUR ACCOUNT
+                ACTIVE: {activeUser.toUpperCase()}
               </span>
             </div>
           </div>
@@ -417,7 +485,7 @@ export default function App() {
 
           {/* Your Contents Grid */}
           {yourContentData.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {yourContentTab} found for your account. Click "🔄 Sync Your Contents" or Log in with Google.</p>
+            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUser.toUpperCase()}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
               {yourContentData.map((item, idx) => (

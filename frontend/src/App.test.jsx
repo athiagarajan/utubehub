@@ -19,7 +19,8 @@ describe('UTubeHub App Component', () => {
     render(<App />);
 
     expect(screen.getByText(/UTubeHub/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Subscribed Channels/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Your Contents/i)).toBeInTheDocument();
+    expect(screen.getByText(/Active Account:/i)).toBeInTheDocument();
+    expect(screen.getByText(/User 1 \(Tech\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/User 2 \(Gaming\)/i)).toBeInTheDocument();
   });
 });

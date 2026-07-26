@@ -65,6 +65,7 @@ public class SubscriptionController {
     @GetMapping
     @Operation(summary = "List All Subscriptions & Own Channel", description = "Fetches user's own channel and subscribed YouTube channels. Automatically triggers live YouTube API sync when authenticated.")
     public ResponseEntity<List<ChannelEntity>> getSubscriptions(
+            @RequestParam(required = false, defaultValue = "user1") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -83,7 +84,7 @@ public class SubscriptionController {
 
         List<ChannelEntity> cached = youTubeService.getLocalSubscriptions();
         if (cached.isEmpty()) {
-            seedDemoData();
+            seedDemoDataForUser(userId);
             return ResponseEntity.ok(channelRepository.findAll());
         }
         return ResponseEntity.ok(cached);
@@ -92,6 +93,7 @@ public class SubscriptionController {
     @PostMapping("/sync")
     @Operation(summary = "Sync Subscriptions & Own Videos", description = "Fetches live subscriptions and your own uploaded videos from YouTube Data API v3 using OAuth access token.")
     public ResponseEntity<?> syncSubscriptions(
+            @RequestParam(required = false, defaultValue = "user1") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -104,10 +106,10 @@ public class SubscriptionController {
         }
 
         if (accessToken.startsWith("demo-")) {
-            seedDemoData();
+            seedDemoDataForUser(userId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Demo mode sync completed! Seeded own channel, subscriptions, videos, shorts, and playlists.",
-                    "channelsSynced", 3
+                    "message", "Demo mode sync completed for " + userId + "! Seeded subscriptions, videos, shorts, and playlists.",
+                    "channelsSynced", 4
             ));
         }
 
@@ -145,7 +147,7 @@ public class SubscriptionController {
                     System.err.println("Channel content sync failed for " + channelId + ": " + e.getMessage());
                 }
             } else if (videos.isEmpty()) {
-                seedDemoData();
+                seedDemoDataForUser("user1");
                 videos = youTubeService.getChannelVideos(channelId, shortsOnly);
             }
         }
@@ -170,89 +172,148 @@ public class SubscriptionController {
                     System.err.println("Channel playlists sync failed for " + channelId + ": " + e.getMessage());
                 }
             } else if (playlists.isEmpty()) {
-                seedDemoData();
+                seedDemoDataForUser("user1");
                 playlists = youTubeService.getChannelPlaylists(channelId);
             }
         }
         return ResponseEntity.ok(playlists);
     }
 
-    private void seedDemoData() {
-        if (!channelRepository.existsById("UC_MY_OWN_CHANNEL_DEMO")) {
-            ChannelEntity myOwnChannel = ChannelEntity.builder()
-                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                    .title("👤 Your Videos (My Channel)")
-                    .description("Videos, Shorts, and Playlists created and uploaded by your YouTube account.")
-                    .subscriberCount(1500L)
-                    .videoCount(8L)
+    public void seedDemoDataForUser(String userId) {
+        if ("user2".equalsIgnoreCase(userId)) {
+            // Seed User 2 (Gaming & Science Account)
+            ChannelEntity user2Channel = ChannelEntity.builder()
+                    .channelId("UC_USER_2_DEMO")
+                    .title("User 2 (Gaming & Science Channel)")
+                    .description("Gaming reviews, scientific deep dives, and tech vlogs.")
+                    .subscriberCount(8900L)
+                    .videoCount(12L)
                     .isMine(true)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
-            ChannelEntity devChannel = ChannelEntity.builder()
-                    .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
-                    .title("Google Developers")
-                    .description("Official Google Developers channel featuring tech talks, tutorials, and keynotes.")
-                    .subscriberCount(2450000L)
-                    .videoCount(5230L)
+            ChannelEntity ign = ChannelEntity.builder()
+                    .channelId("UC_IGN_DEMO")
+                    .title("IGN")
+                    .description("The latest game reviews, trailers, and walkthroughs.")
+                    .subscriberCount(17800000L)
+                    .videoCount(45000L)
                     .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
-            ChannelEntity fireshipChannel = ChannelEntity.builder()
-                    .channelId("UCsBjURrP6M6nO6jC11p9xGA")
-                    .title("Fireship")
-                    .description("High-intensity code tutorials and tech news to help you build apps faster.")
-                    .subscriberCount(3100000L)
-                    .videoCount(650L)
+            ChannelEntity veritasium = ChannelEntity.builder()
+                    .channelId("UC_VERITASIUM_DEMO")
+                    .title("Veritasium")
+                    .description("An element of truth - videos about science, education, and curiosity.")
+                    .subscriberCount(14500000L)
+                    .videoCount(380L)
                     .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
-            channelRepository.saveAll(List.of(myOwnChannel, devChannel, fireshipChannel));
+            channelRepository.saveAll(List.of(user2Channel, ign, veritasium));
 
             videoRepository.saveAll(List.of(
                 VideoEntity.builder()
-                    .videoId("l83R15D3910")
-                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                    .title("My First Project Demo Video")
-                    .description("Welcome to my YouTube channel!")
-                    .durationSeconds(420)
+                    .videoId("M576WGiDBdQ")
+                    .channelId("UC_USER_2_DEMO")
+                    .title("User 2 Tech Setup Tour 2026")
+                    .description("Check out my dual monitor workstation!")
+                    .durationSeconds(360)
                     .isShort(false)
                     .publishedAt(LocalDateTime.now().minusDays(1))
-                    .viewCount(1200L)
-                    .build(),
-                VideoEntity.builder()
-                    .videoId("M576WGiDBdQ")
-                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                    .title("My Quick Coding Short")
-                    .description("Building apps fast #shorts")
-                    .durationSeconds(45)
-                    .isShort(true)
-                    .publishedAt(LocalDateTime.now().minusDays(3))
-                    .viewCount(3400L)
+                    .viewCount(4500L)
                     .build(),
                 VideoEntity.builder()
                     .videoId("l83R15D3910")
-                    .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
-                    .title("Google I/O 2026 Keynote")
-                    .description("Watch the official announcements from Google I/O.")
-                    .durationSeconds(7200)
+                    .channelId("UC_IGN_DEMO")
+                    .title("Top 10 Upcoming Games of 2026")
+                    .description("Official gameplay breakdown.")
+                    .durationSeconds(900)
                     .isShort(false)
                     .publishedAt(LocalDateTime.now().minusDays(2))
-                    .viewCount(1500000L)
+                    .viewCount(890000L)
                     .build()
             ));
+        } else {
+            // Seed User 1 (Tech & Coding Account)
+            if (!channelRepository.existsById("UC_MY_OWN_CHANNEL_DEMO")) {
+                ChannelEntity user1Channel = ChannelEntity.builder()
+                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .title("User 1 (Tech & Coding Channel)")
+                        .description("Full stack engineering tutorials, project demos, and live streams.")
+                        .subscriberCount(1500L)
+                        .videoCount(8L)
+                        .isMine(true)
+                        .lastSyncedAt(LocalDateTime.now())
+                        .build();
 
-            playlistRepository.save(
-                PlaylistEntity.builder()
-                    .playlistId("PL_MY_OWN_PLAYLIST_1")
-                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                    .title("My Uploaded Tutorials & Projects")
-                    .description("Collection of videos created by me.")
-                    .itemCount(5)
-                    .build()
-            );
+                ChannelEntity devChannel = ChannelEntity.builder()
+                        .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
+                        .title("Google Developers")
+                        .description("Official Google Developers channel featuring tech talks and keynotes.")
+                        .subscriberCount(2450000L)
+                        .videoCount(5230L)
+                        .isMine(false)
+                        .lastSyncedAt(LocalDateTime.now())
+                        .build();
+
+                ChannelEntity fireshipChannel = ChannelEntity.builder()
+                        .channelId("UCsBjURrP6M6nO6jC11p9xGA")
+                        .title("Fireship")
+                        .description("High-intensity code tutorials to help you build apps faster.")
+                        .subscriberCount(3100000L)
+                        .videoCount(650L)
+                        .isMine(false)
+                        .lastSyncedAt(LocalDateTime.now())
+                        .build();
+
+                channelRepository.saveAll(List.of(user1Channel, devChannel, fireshipChannel));
+
+                videoRepository.saveAll(List.of(
+                    VideoEntity.builder()
+                        .videoId("l83R15D3910")
+                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .title("User 1 Full Stack Demo Video")
+                        .description("Building UTubeHub with React & Spring Boot!")
+                        .durationSeconds(420)
+                        .isShort(false)
+                        .publishedAt(LocalDateTime.now().minusDays(1))
+                        .viewCount(1200L)
+                        .build(),
+                    VideoEntity.builder()
+                        .videoId("M576WGiDBdQ")
+                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .title("User 1 Quick Coding Short")
+                        .description("Building full stack apps fast #shorts")
+                        .durationSeconds(45)
+                        .isShort(true)
+                        .publishedAt(LocalDateTime.now().minusDays(3))
+                        .viewCount(3400L)
+                        .build(),
+                    VideoEntity.builder()
+                        .videoId("l83R15D3910")
+                        .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
+                        .title("Google I/O 2026 Keynote")
+                        .description("Watch the official announcements from Google I/O.")
+                        .durationSeconds(7200)
+                        .isShort(false)
+                        .publishedAt(LocalDateTime.now().minusDays(2))
+                        .viewCount(1500000L)
+                        .build()
+                ));
+
+                playlistRepository.save(
+                    PlaylistEntity.builder()
+                        .playlistId("PL_MY_OWN_PLAYLIST_1")
+                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .title("User 1 Coding Projects Playlist")
+                        .description("Collection of project demos created by me.")
+                        .itemCount(5)
+                        .build()
+                );
+            }
         }
     }
 }
