@@ -47,23 +47,28 @@ public class SubscriptionController {
         this.authorizedClientService = authorizedClientService;
     }
 
+    private String resolveAccessToken(String authHeader, Authentication authentication) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+            OAuth2AuthorizedClient client = authorizedClientService.loadAuthorizedClient(
+                    oauthToken.getAuthorizedClientRegistrationId(),
+                    oauthToken.getName());
+            if (client != null && client.getAccessToken() != null) {
+                return client.getAccessToken().getTokenValue();
+            }
+        }
+        return null;
+    }
+
     @GetMapping
     @Operation(summary = "List All Subscriptions", description = "Fetches user subscribed YouTube channels. Automatically triggers live YouTube API sync when authenticated.")
     public ResponseEntity<List<ChannelEntity>> getSubscriptions(
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
-        String accessToken = null;
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            accessToken = authHeader.substring(7);
-        } else if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
-            OAuth2AuthorizedClient client = authorizedClientService.loadAuthorizedClient(
-                    oauthToken.getAuthorizedClientRegistrationId(),
-                    oauthToken.getName());
-            if (client != null && client.getAccessToken() != null) {
-                accessToken = client.getAccessToken().getTokenValue();
-            }
-        }
+        String accessToken = resolveAccessToken(authHeader, authentication);
 
         if (accessToken != null && !accessToken.startsWith("demo-")) {
             try {
@@ -78,7 +83,102 @@ public class SubscriptionController {
 
         List<ChannelEntity> cached = youTubeService.getLocalSubscriptions();
         if (cached.isEmpty()) {
-            // Seed initial demo channels if database is unseeded
+            seedDemoData();
+            return ResponseEntity.ok(channelRepository.findAll());
+        }
+        return ResponseEntity.ok(cached);
+    }
+
+    @PostMapping("/sync")
+    @Operation(summary = "Sync Subscriptions with YouTube API", description = "Fetches live subscriptions from YouTube Data API v3 using user OAuth access token and updates local database.")
+    public ResponseEntity<?> syncSubscriptions(
+            @RequestHeader(name = "Authorization", required = false) String authHeader,
+            Authentication authentication) {
+
+        String accessToken = resolveAccessToken(authHeader, authentication);
+        if (accessToken == null) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "error", "Unauthorized",
+                    "message", "Bearer OAuth Access Token is required to sync with YouTube API."
+            ));
+        }
+
+        if (accessToken.startsWith("demo-")) {
+            seedDemoData();
+            return ResponseEntity.ok(Map.of(
+                    "message", "Demo mode sync completed! Seeded channels, videos, shorts, and playlists.",
+                    "channelsSynced", 2
+            ));
+        }
+
+        try {
+            List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Successfully synced " + synced.size() + " subscriptions from YouTube API.",
+                    "channelsSynced", synced.size()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Sync Failed",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/{channelId}/videos")
+    @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific subscribed channel, with an optional filter for Shorts.")
+    public ResponseEntity<List<VideoEntity>> getChannelVideos(
+            @PathVariable String channelId,
+            @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
+            @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly,
+            @RequestHeader(name = "Authorization", required = false) String authHeader,
+            Authentication authentication) {
+
+        List<VideoEntity> videos = youTubeService.getChannelVideos(channelId, shortsOnly);
+        if (videos.isEmpty()) {
+            String accessToken = resolveAccessToken(authHeader, authentication);
+            if (accessToken != null && !accessToken.startsWith("demo-")) {
+                try {
+                    youTubeService.syncChannelContent(accessToken, channelId);
+                    videos = youTubeService.getChannelVideos(channelId, shortsOnly);
+                } catch (Exception e) {
+                    System.err.println("Channel content sync failed for " + channelId + ": " + e.getMessage());
+                }
+            } else if (videos.isEmpty()) {
+                seedDemoData();
+                videos = youTubeService.getChannelVideos(channelId, shortsOnly);
+            }
+        }
+        return ResponseEntity.ok(videos);
+    }
+
+    @GetMapping("/{channelId}/playlists")
+    @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
+    public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(
+            @PathVariable String channelId,
+            @RequestHeader(name = "Authorization", required = false) String authHeader,
+            Authentication authentication) {
+
+        List<PlaylistEntity> playlists = youTubeService.getChannelPlaylists(channelId);
+        if (playlists.isEmpty()) {
+            String accessToken = resolveAccessToken(authHeader, authentication);
+            if (accessToken != null && !accessToken.startsWith("demo-")) {
+                try {
+                    youTubeService.syncChannelContent(accessToken, channelId);
+                    playlists = youTubeService.getChannelPlaylists(channelId);
+                } catch (Exception e) {
+                    System.err.println("Channel playlists sync failed for " + channelId + ": " + e.getMessage());
+                }
+            } else if (playlists.isEmpty()) {
+                seedDemoData();
+                playlists = youTubeService.getChannelPlaylists(channelId);
+            }
+        }
+        return ResponseEntity.ok(playlists);
+    }
+
+    private void seedDemoData() {
+        if (!channelRepository.existsById("UC_x5XG1OV2P6uZZ5FSM9Ttw")) {
             ChannelEntity devChannel = ChannelEntity.builder()
                     .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
                     .title("Google Developers")
@@ -131,57 +231,6 @@ public class SubscriptionController {
                     .itemCount(24)
                     .build()
             );
-
-            return ResponseEntity.ok(channelRepository.findAll());
         }
-        return ResponseEntity.ok(cached);
-    }
-
-    @PostMapping("/sync")
-    @Operation(summary = "Sync Subscriptions with YouTube API", description = "Fetches live subscriptions from YouTube Data API v3 using user OAuth access token and updates local database.")
-    public ResponseEntity<?> syncSubscriptions(
-            @RequestHeader(name = "Authorization", required = false) String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body(Map.of(
-                    "error", "Unauthorized",
-                    "message", "Bearer OAuth Access Token is required to sync with YouTube API."
-            ));
-        }
-
-        String accessToken = authHeader.substring(7);
-        if (accessToken.startsWith("demo-")) {
-            return ResponseEntity.ok(Map.of(
-                    "message", "Demo mode sync completed! Seeded channels, videos, shorts, and playlists.",
-                    "channelsSynced", 2
-            ));
-        }
-
-        try {
-            List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken);
-            return ResponseEntity.ok(Map.of(
-                    "message", "Successfully synced " + synced.size() + " subscriptions from YouTube API.",
-                    "channelsSynced", synced.size()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "error", "Sync Failed",
-                    "message", e.getMessage()
-            ));
-        }
-    }
-
-    @GetMapping("/{channelId}/videos")
-    @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific subscribed channel, with an optional filter for Shorts.")
-    public ResponseEntity<List<VideoEntity>> getChannelVideos(
-            @PathVariable String channelId,
-            @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
-            @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly) {
-        return ResponseEntity.ok(youTubeService.getChannelVideos(channelId, shortsOnly));
-    }
-
-    @GetMapping("/{channelId}/playlists")
-    @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
-    public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(@PathVariable String channelId) {
-        return ResponseEntity.ok(youTubeService.getChannelPlaylists(channelId));
     }
 }

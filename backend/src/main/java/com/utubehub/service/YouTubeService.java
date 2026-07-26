@@ -15,7 +15,7 @@ import com.utubehub.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigInteger;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,7 +56,6 @@ public class YouTubeService {
     public List<ChannelEntity> syncUserSubscriptions(String accessToken) throws Exception {
         YouTube youtube = createYouTubeClient(accessToken);
         List<String> channelIds = new ArrayList<>();
-        Map<String, SubscriptionSnippet> subscriptionSnippets = new HashMap<>();
 
         String pageToken = null;
         do {
@@ -76,9 +75,7 @@ public class YouTubeService {
                 for (Subscription sub : items) {
                     SubscriptionSnippet snippet = sub.getSnippet();
                     if (snippet != null && snippet.getResourceId() != null) {
-                        String channelId = snippet.getResourceId().getChannelId();
-                        channelIds.add(channelId);
-                        subscriptionSnippets.put(channelId, snippet);
+                        channelIds.add(snippet.getResourceId().getChannelId());
                     }
                 }
             }
@@ -138,6 +135,128 @@ public class YouTubeService {
         }
 
         return savedChannels;
+    }
+
+    public List<VideoEntity> syncChannelContent(String accessToken, String channelId) throws Exception {
+        YouTube youtube = createYouTubeClient(accessToken);
+
+        // Lookup channel's uploads playlist ID
+        ChannelEntity channel = channelRepository.findById(channelId).orElse(null);
+        String uploadsPlaylistId = (channel != null) ? channel.getUploadsPlaylistId() : null;
+
+        if (uploadsPlaylistId == null) {
+            YouTube.Channels.List chReq = youtube.channels().list(List.of("contentDetails")).setId(List.of(channelId));
+            ChannelListResponse chRes = chReq.execute();
+            if (chRes.getItems() != null && !chRes.getItems().isEmpty()) {
+                uploadsPlaylistId = chRes.getItems().get(0).getContentDetails().getRelatedPlaylists().getUploads();
+            }
+        }
+
+        List<VideoEntity> savedVideos = new ArrayList<>();
+        if (uploadsPlaylistId != null) {
+            // Fetch latest uploads
+            YouTube.PlaylistItems.List playlistReq = youtube.playlistItems()
+                    .list(List.of("snippet", "contentDetails"))
+                    .setPlaylistId(uploadsPlaylistId)
+                    .setMaxResults(50L);
+
+            PlaylistItemListResponse playlistRes = playlistReq.execute();
+            List<PlaylistItem> items = playlistRes.getItems();
+
+            if (items != null && !items.isEmpty()) {
+                List<String> videoIds = items.stream()
+                        .map(item -> item.getContentDetails().getVideoId())
+                        .toList();
+
+                // Fetch video durations & statistics to isolate Shorts (<60s)
+                YouTube.Videos.List videoReq = youtube.videos()
+                        .list(List.of("snippet", "contentDetails", "statistics"))
+                        .setId(videoIds);
+
+                VideoListResponse videoRes = videoReq.execute();
+                List<com.google.api.services.youtube.model.Video> ytVideos = videoRes.getItems();
+
+                if (ytVideos != null) {
+                    for (com.google.api.services.youtube.model.Video v : ytVideos) {
+                        VideoSnippet snippet = v.getSnippet();
+                        VideoContentDetails details = v.getContentDetails();
+                        VideoStatistics stats = v.getStatistics();
+
+                        int durationSecs = 0;
+                        if (details != null && details.getDuration() != null) {
+                            try {
+                                durationSecs = (int) Duration.parse(details.getDuration()).getSeconds();
+                            } catch (Exception ignored) {}
+                        }
+
+                        boolean isShort = durationSecs > 0 && durationSecs <= 60;
+                        if (snippet != null && snippet.getTitle() != null && snippet.getTitle().toLowerCase().contains("#shorts")) {
+                            isShort = true;
+                        }
+
+                        String thumbnailUrl = null;
+                        if (snippet != null && snippet.getThumbnails() != null) {
+                            if (snippet.getThumbnails().getHigh() != null) {
+                                thumbnailUrl = snippet.getThumbnails().getHigh().getUrl();
+                            } else if (snippet.getThumbnails().getDefault() != null) {
+                                thumbnailUrl = snippet.getThumbnails().getDefault().getUrl();
+                            }
+                        }
+
+                        VideoEntity entity = VideoEntity.builder()
+                                .videoId(v.getId())
+                                .channelId(channelId)
+                                .title(snippet != null ? snippet.getTitle() : "Untitled Video")
+                                .description(snippet != null ? snippet.getDescription() : "")
+                                .thumbnailUrl(thumbnailUrl)
+                                .durationSeconds(durationSecs)
+                                .isShort(isShort)
+                                .viewCount((stats != null && stats.getViewCount() != null) ? stats.getViewCount().longValue() : 0L)
+                                .likeCount((stats != null && stats.getLikeCount() != null) ? stats.getLikeCount().longValue() : 0L)
+                                .build();
+
+                        savedVideos.add(videoRepository.save(entity));
+                    }
+                }
+            }
+        }
+
+        // Fetch channel playlists
+        try {
+            YouTube.Playlists.List playlistReq = youtube.playlists()
+                    .list(List.of("snippet", "contentDetails"))
+                    .setChannelId(channelId)
+                    .setMaxResults(25L);
+
+            PlaylistListResponse playlistRes = playlistReq.execute();
+            List<com.google.api.services.youtube.model.Playlist> ytPlaylists = playlistRes.getItems();
+            if (ytPlaylists != null) {
+                for (com.google.api.services.youtube.model.Playlist pl : ytPlaylists) {
+                    PlaylistSnippet snippet = pl.getSnippet();
+                    PlaylistContentDetails details = pl.getContentDetails();
+
+                    String thumbnailUrl = null;
+                    if (snippet != null && snippet.getThumbnails() != null && snippet.getThumbnails().getDefault() != null) {
+                        thumbnailUrl = snippet.getThumbnails().getDefault().getUrl();
+                    }
+
+                    PlaylistEntity entity = PlaylistEntity.builder()
+                            .playlistId(pl.getId())
+                            .channelId(channelId)
+                            .title(snippet != null ? snippet.getTitle() : "Untitled Playlist")
+                            .description(snippet != null ? snippet.getDescription() : "")
+                            .itemCount((details != null && details.getItemCount() != null) ? details.getItemCount().intValue() : 0)
+                            .thumbnailUrl(thumbnailUrl)
+                            .build();
+
+                    playlistRepository.save(entity);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Playlists fetch notice for channel " + channelId + ": " + e.getMessage());
+        }
+
+        return savedVideos;
     }
 
     public List<ChannelEntity> getLocalSubscriptions() {
