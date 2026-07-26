@@ -10,5 +10,6 @@ import java.util.List;
 public interface VideoRepository extends JpaRepository<VideoEntity, String> {
     List<VideoEntity> findByChannelId(String channelId);
     List<VideoEntity> findByChannelIdAndIsShortTrue(String channelId);
-    List<VideoEntity> findByChannelIdAndIsShortFalse(String channelId);
+    List<VideoEntity> findByUserId(String userId);
+    List<VideoEntity> findByUserIdAndIsShortTrue(String userId);
 }

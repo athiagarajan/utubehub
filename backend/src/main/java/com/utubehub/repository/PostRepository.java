@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface PostRepository extends JpaRepository<PostEntity, String> {
     List<PostEntity> findByChannelId(String channelId);
+    List<PostEntity> findByUserId(String userId);
 }

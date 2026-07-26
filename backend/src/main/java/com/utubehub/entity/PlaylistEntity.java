@@ -19,6 +19,9 @@ public class PlaylistEntity {
     @Column(name = "playlist_id")
     private String playlistId;
 
+    @Column(name = "user_id")
+    private String userId;
+
     @Column(name = "channel_id", nullable = false)
     private String channelId;
 

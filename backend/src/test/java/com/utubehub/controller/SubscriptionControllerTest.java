@@ -25,7 +25,7 @@ class SubscriptionControllerTest {
         mockMvc.perform(get("/api/v1/subscriptions")
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].title").value("User 1 (Tech & Coding Channel)"));
+                .andExpect(jsonPath("$[0].title").value("account1 Uploaded Channel"));
     }
 
     @Test

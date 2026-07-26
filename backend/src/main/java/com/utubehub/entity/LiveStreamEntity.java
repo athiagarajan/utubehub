@@ -21,6 +21,9 @@ public class LiveStreamEntity {
     @Column(name = "stream_id")
     private String streamId;
 
+    @Column(name = "user_id")
+    private String userId;
+
     @Column(name = "channel_id", nullable = false)
     private String channelId;
 
@@ -34,7 +37,7 @@ public class LiveStreamEntity {
     private String thumbnailUrl;
 
     @Column(name = "status")
-    private String status; // 'live', 'upcoming', 'completed'
+    private String status;
 
     @Column(name = "scheduled_start_time")
     private LocalDateTime scheduledStartTime;

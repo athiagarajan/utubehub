@@ -21,6 +21,9 @@ public class ChannelEntity {
     @Column(name = "channel_id")
     private String channelId;
 
+    @Column(name = "user_id")
+    private String userId;
+
     @Column(nullable = false)
     private String title;
 

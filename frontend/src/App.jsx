@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
-  const [activeUserEmail, setActiveUserEmail] = useState('Default Account');
+  const [activeUserEmail, setActiveUserEmail] = useState('account1@gmail.com');
   const [googleUser, setGoogleUser] = useState(null);
   const [userToken, setUserToken] = useState(null);
 
@@ -60,9 +60,7 @@ export default function App() {
   };
 
   const loadAllChannels = (email = activeUserEmail) => {
-    const userId = email.includes('2') ? 'user2' : 'user1';
-
-    return fetch(`/api/v1/subscriptions?userId=${userId}`)
+    return fetch(`/api/v1/subscriptions?userId=${encodeURIComponent(email)}`)
       .then((res) => res.json())
       .then((data) => {
         const mine = data.find((ch) => ch.isMine);
@@ -72,7 +70,7 @@ export default function App() {
         setSubscriptions(subbed);
 
         if (subbed.length > 0) {
-          selectSubscribedChannel(subbed[0], 'videos');
+          selectSubscribedChannel(subbed[0], 'videos', email);
         } else {
           setSelectedSubscribedChannel(null);
           setSubscribedContent([]);
@@ -87,12 +85,11 @@ export default function App() {
   const triggerFullSync = (email = activeUserEmail) => {
     setIsSyncing(true);
     setIsSubscribedSyncing(true);
-    const userId = email.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     Promise.all([
-      fetch(`/api/v1/subscriptions/sync?userId=${userId}`, { method: 'POST', headers }),
-      fetch(`/api/v1/user/sync?userId=${userId}`, { method: 'POST', headers })
+      fetch(`/api/v1/subscriptions/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers }),
+      fetch(`/api/v1/user/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers })
     ])
     .then(() => {
       setIsSyncing(false);
@@ -118,10 +115,9 @@ export default function App() {
 
   const syncSubscribedChannels = () => {
     setIsSubscribedSyncing(true);
-    const userId = activeUserEmail.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/subscriptions/sync?userId=${userId}`, { method: 'POST', headers })
+    fetch(`/api/v1/subscriptions/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSubscribedSyncing(false);
@@ -136,10 +132,9 @@ export default function App() {
 
   const syncYourContents = () => {
     setIsSyncing(true);
-    const userId = activeUserEmail.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/user/sync?userId=${userId}`, { method: 'POST', headers })
+    fetch(`/api/v1/user/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSyncing(false);
@@ -152,28 +147,27 @@ export default function App() {
       });
   };
 
-  const selectSubscribedChannel = (channel, tab = 'videos') => {
+  const selectSubscribedChannel = (channel, tab = 'videos', email = activeUserEmail) => {
     setSelectedSubscribedChannel(channel);
     setSubscribedTab(tab);
 
-    let endpoint = `/api/v1/subscriptions/${channel.channelId}/videos`;
+    let endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}`;
     if (tab === 'shorts') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?shortsOnly=true`;
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}&shortsOnly=true`;
     } else if (tab === 'playlists') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/playlists`;
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/playlists?userId=${encodeURIComponent(email)}`;
     }
 
     fetch(endpoint)
       .then((res) => res.json())
-      .then((data) => setSubscribedContent(data))
+      .then((data) => setSubscribedContent(Array.isArray(data) ? data : []))
       .catch((err) => console.error(`Failed to load subscribed ${tab}:`, err));
   };
 
   const loadYourContent = (tab = 'videos', email = activeUserEmail) => {
     setYourContentTab(tab);
     setIsYourContentLoading(true);
-    const userId = email.includes('2') ? 'user2' : 'user1';
-    let endpoint = `/api/v1/user/${tab}?userId=${userId}`;
+    let endpoint = `/api/v1/user/${tab}?userId=${encodeURIComponent(email)}`;
 
     fetch(endpoint)
       .then((res) => res.json())
@@ -196,9 +190,9 @@ export default function App() {
   const switchToSubscribedTab = () => {
     setMainNavTab('subscribed');
     if (selectedSubscribedChannel) {
-      selectSubscribedChannel(selectedSubscribedChannel, subscribedTab);
+      selectSubscribedChannel(selectedSubscribedChannel, subscribedTab, activeUserEmail);
     } else if (subscriptions.length > 0) {
-      selectSubscribedChannel(subscriptions[0], 'videos');
+      selectSubscribedChannel(subscriptions[0], 'videos', activeUserEmail);
     }
   };
 
@@ -224,12 +218,24 @@ export default function App() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
           {/* User Account Switcher Selector with Actual Emails */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
-            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Account:</span>
+            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Active Account:</span>
             
             {googleUser && (
-              <span style={{ background: '#059669', color: '#fff', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <button
+                onClick={() => switchUserAccount(googleUser.email)}
+                style={{
+                  background: activeUserEmail === googleUser.email ? '#059669' : '#27272a',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
                 ✓ {googleUser.email}
-              </span>
+              </button>
             )}
 
             <button
@@ -238,7 +244,7 @@ export default function App() {
                 background: activeUserEmail === 'account1@gmail.com' ? '#2563eb' : '#27272a',
                 color: '#fff',
                 border: 'none',
-                padding: '0.3rem 0.75rem',
+                padding: '0.35rem 0.75rem',
                 borderRadius: '6px',
                 fontSize: '0.8rem',
                 fontWeight: 'bold',
@@ -250,10 +256,10 @@ export default function App() {
             <button
               onClick={() => switchUserAccount('account2@gmail.com')}
               style={{
-                background: activeUserEmail === 'account2@gmail.com' ? '#059669' : '#27272a',
+                background: activeUserEmail === 'account2@gmail.com' ? '#2563eb' : '#27272a',
                 color: '#fff',
                 border: 'none',
-                padding: '0.3rem 0.75rem',
+                padding: '0.35rem 0.75rem',
                 borderRadius: '6px',
                 fontSize: '0.8rem',
                 fontWeight: 'bold',
@@ -426,7 +432,7 @@ export default function App() {
               {subscriptions.map((sub) => (
                 <div
                   key={sub.channelId}
-                  onClick={() => selectSubscribedChannel(sub, 'videos')}
+                  onClick={() => selectSubscribedChannel(sub, 'videos', activeUserEmail)}
                   style={{
                     background: selectedSubscribedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
                     padding: '1rem',
@@ -456,7 +462,7 @@ export default function App() {
                 {['videos', 'shorts', 'playlists'].map((tab) => (
                   <button
                     key={tab}
-                    onClick={() => selectSubscribedChannel(selectedSubscribedChannel, tab)}
+                    onClick={() => selectSubscribedChannel(selectedSubscribedChannel, tab, activeUserEmail)}
                     style={{
                       padding: '0.5rem 1.25rem',
                       borderRadius: '6px',

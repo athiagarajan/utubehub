@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface PlaylistRepository extends JpaRepository<PlaylistEntity, String> {
     List<PlaylistEntity> findByChannelId(String channelId);
+    List<PlaylistEntity> findByUserId(String userId);
 }

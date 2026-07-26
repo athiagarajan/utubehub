@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface LiveStreamRepository extends JpaRepository<LiveStreamEntity, String> {
     List<LiveStreamEntity> findByChannelId(String channelId);
+    List<LiveStreamEntity> findByUserId(String userId);
 }
