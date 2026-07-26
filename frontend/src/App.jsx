@@ -15,11 +15,13 @@ export default function App() {
   const [selectedSubscribedChannel, setSelectedSubscribedChannel] = useState(null);
   const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
   const [subscribedContent, setSubscribedContent] = useState([]);
+  const [subscribedCounts, setSubscribedCounts] = useState({ videos: 0, shorts: 0, playlists: 0 });
   const [isSubscribedSyncing, setIsSubscribedSyncing] = useState(false);
 
   // Your Contents state
   const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts'
   const [yourContentData, setYourContentData] = useState([]);
+  const [yourContentCounts, setYourContentCounts] = useState({ videos: 0, playlists: 0, live: 0, posts: 0 });
   const [isYourContentLoading, setIsYourContentLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -89,12 +91,50 @@ export default function App() {
         } else {
           setSelectedSubscribedChannel(null);
           setSubscribedContent([]);
+          setSubscribedCounts({ videos: 0, shorts: 0, playlists: 0 });
         }
 
+        fetchAllYourContentCounts(email);
         loadYourContent('videos', email);
         return { mine, subbed };
       })
       .catch((err) => console.error('Failed to load channels:', err));
+  };
+
+  const fetchSubscribedChannelCounts = (channelId, email = activeUserEmail) => {
+    const encEmail = encodeURIComponent(email);
+    Promise.all([
+      fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}&shortsOnly=true`).then((r) => r.json()),
+      fetch(`/api/v1/subscriptions/${channelId}/playlists?userId=${encEmail}`).then((r) => r.json())
+    ])
+    .then(([vids, shorts, lists]) => {
+      setSubscribedCounts({
+        videos: Array.isArray(vids) ? vids.length : 0,
+        shorts: Array.isArray(shorts) ? shorts.length : 0,
+        playlists: Array.isArray(lists) ? lists.length : 0
+      });
+    })
+    .catch((err) => console.error('Error fetching subscribed counts:', err));
+  };
+
+  const fetchAllYourContentCounts = (email = activeUserEmail) => {
+    const encEmail = encodeURIComponent(email);
+    Promise.all([
+      fetch(`/api/v1/user/videos?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/user/playlists?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/user/live?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/user/posts?userId=${encEmail}`).then((r) => r.json())
+    ])
+    .then(([vids, lists, live, posts]) => {
+      setYourContentCounts({
+        videos: Array.isArray(vids) ? vids.length : 0,
+        playlists: Array.isArray(lists) ? lists.length : 0,
+        live: Array.isArray(live) ? live.length : 0,
+        posts: Array.isArray(posts) ? posts.length : 0
+      });
+    })
+    .catch((err) => console.error('Error fetching user content counts:', err));
   };
 
   const triggerFullSync = (email = activeUserEmail) => {
@@ -165,6 +205,7 @@ export default function App() {
   const selectSubscribedChannel = (channel, tab = 'videos', email = activeUserEmail) => {
     setSelectedSubscribedChannel(channel);
     setSubscribedTab(tab);
+    fetchSubscribedChannelCounts(channel.channelId, email);
 
     let endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}`;
     if (tab === 'shorts') {
@@ -187,7 +228,9 @@ export default function App() {
     fetch(endpoint)
       .then((res) => res.json())
       .then((data) => {
-        setYourContentData(Array.isArray(data) ? data : []);
+        const arr = Array.isArray(data) ? data : [];
+        setYourContentData(arr);
+        setYourContentCounts((prev) => ({ ...prev, [tab]: arr.length }));
         setIsYourContentLoading(false);
       })
       .catch((err) => {
@@ -199,6 +242,7 @@ export default function App() {
 
   const switchToUploadedTab = () => {
     setMainNavTab('uploaded');
+    fetchAllYourContentCounts(activeUserEmail);
     loadYourContent(yourContentTab, activeUserEmail);
   };
 
@@ -270,7 +314,7 @@ export default function App() {
               🔑 Log in with Google
             </a>
             <a
-              href="/swagger-ui.html"
+              href="http://localhost:8080/swagger-ui.html"
               target="_blank"
               rel="noreferrer"
               style={{ color: '#38bdf8', fontSize: '0.8rem', textDecoration: 'none', background: '#1e293b', padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid #334155' }}
@@ -388,7 +432,12 @@ export default function App() {
           {/* Subscribed Channels Sidebar */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ color: '#f4f4f5', margin: 0, fontSize: '1.25rem' }}>Subscribed Channels</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <h2 style={{ color: '#f4f4f5', margin: 0, fontSize: '1.25rem' }}>Subscribed Channels</h2>
+                <span style={{ color: '#4ade80', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                  👤 Active Account: {activeUserEmail}
+                </span>
+              </div>
               <button
                 onClick={syncSubscribedChannels}
                 disabled={isSubscribedSyncing}
@@ -426,26 +475,50 @@ export default function App() {
               <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedSubscribedChannel.title}</h2>
               <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedSubscribedChannel.description}</p>
 
-              {/* Sub-Tabs for Videos, Shorts, Playlists */}
+              {/* Sub-Tabs for Videos, Shorts, Playlists with Item Counts */}
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
-                {['videos', 'shorts', 'playlists'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => selectSubscribedChannel(selectedSubscribedChannel, tab, activeUserEmail)}
-                    style={{
-                      padding: '0.5rem 1.25rem',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: subscribedTab === tab ? '#cc0000' : '#27272a',
-                      color: '#fff',
-                      fontWeight: 'bold',
-                      textTransform: 'capitalize',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {tab}
-                  </button>
-                ))}
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'videos', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'videos' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Videos ({subscribedCounts.videos})
+                </button>
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'shorts', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'shorts' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Shorts ({subscribedCounts.shorts})
+                </button>
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'playlists', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'playlists' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Playlists ({subscribedCounts.playlists})
+                </button>
               </div>
 
               {/* Subscribed Content Grid */}
@@ -496,26 +569,64 @@ export default function App() {
             </div>
           </div>
 
-          {/* Sub-Tabs for Videos, Playlists, Live, Posts */}
+          {/* Sub-Tabs for Videos, Playlists, Live, Posts with Live Item Counts */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
-            {['videos', 'playlists', 'live', 'posts'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => loadYourContent(tab, activeUserEmail)}
-                style={{
-                  padding: '0.5rem 1.25rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: yourContentTab === tab ? '#059669' : '#27272a',
-                  color: '#fff',
-                  fontWeight: 'bold',
-                  textTransform: 'capitalize',
-                  cursor: 'pointer'
-                }}
-              >
-                {tab}
-              </button>
-            ))}
+            <button
+              onClick={() => loadYourContent('videos', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1.25rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'videos' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Videos ({yourContentCounts.videos})
+            </button>
+            <button
+              onClick={() => loadYourContent('playlists', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1.25rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'playlists' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Playlists ({yourContentCounts.playlists})
+            </button>
+            <button
+              onClick={() => loadYourContent('live', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1.25rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'live' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Live ({yourContentCounts.live})
+            </button>
+            <button
+              onClick={() => loadYourContent('posts', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1.25rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'posts' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Posts ({yourContentCounts.posts})
+            </button>
           </div>
 
           {/* Your Contents Grid */}

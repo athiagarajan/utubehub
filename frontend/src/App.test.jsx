@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import App from './App';
 
 describe('UTubeHub App Component', () => {
-  it('renders application header and title', () => {
+  it('renders application header, active account badge, and Swagger button', () => {
     // Mock fetch for health, auth user, and subscriptions endpoints
     global.fetch = vi.fn().mockImplementation((url) => {
       if (url.includes('/api/v1/health')) {
@@ -26,5 +26,8 @@ describe('UTubeHub App Component', () => {
     expect(screen.getAllByText(/UTubeHub/i)[0]).toBeInTheDocument();
     expect(screen.getByText(/👤 Google Account:/i)).toBeInTheDocument();
     expect(screen.getAllByText(/atrteach@gmail.com/i)[0]).toBeInTheDocument();
+
+    const swaggerLink = screen.getByText(/📄 Swagger/i).closest('a');
+    expect(swaggerLink).toHaveAttribute('href', 'http://localhost:8080/swagger-ui.html');
   });
 });
