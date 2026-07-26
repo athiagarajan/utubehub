@@ -7,8 +7,11 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Configuration
 public class SwaggerConfig {
@@ -17,7 +20,12 @@ public class SwaggerConfig {
 
     @Bean
     public OpenAPI utubehubOpenAPI() {
+        Server localServer = new Server()
+                .url("http://localhost:8080")
+                .description("Local Development Server");
+
         return new OpenAPI()
+                .servers(List.of(localServer))
                 .info(new Info()
                         .title("UTubeHub REST API")
                         .description("API Service for YouTube Subscriptions Management, In-Browser Playback, and Gemini AI Prompt Search. Authenticate via Google OAuth2 or input Bearer token.")
