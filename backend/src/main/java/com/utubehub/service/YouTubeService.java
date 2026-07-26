@@ -54,7 +54,7 @@ public class YouTubeService {
                 .build();
     }
 
-    public ChannelEntity syncMyUploads(String accessToken) throws Exception {
+    public ChannelEntity syncMyUploads(String accessToken, String userId) throws Exception {
         YouTube youtube = createYouTubeClient(accessToken);
         YouTube.Channels.List request = youtube.channels()
                 .list(List.of("snippet", "statistics", "contentDetails"))
@@ -89,8 +89,9 @@ public class YouTubeService {
 
             ChannelEntity entity = ChannelEntity.builder()
                     .channelId(myChannel.getId())
-                    .title((snippet != null ? snippet.getTitle() : "My Account Uploads"))
-                    .description(snippet != null ? snippet.getDescription() : "Your uploaded videos, playlists, live streams, and posts")
+                    .userId(userId)
+                    .title((snippet != null ? snippet.getTitle() : userId + "'s YouTube Channel"))
+                    .description(snippet != null ? snippet.getDescription() : "Uploaded videos, playlists, live streams, and posts for " + userId)
                     .thumbnailUrl(thumbnailUrl)
                     .subscriberCount(subscriberCount)
                     .videoCount(videoCount)
@@ -102,7 +103,7 @@ public class YouTubeService {
             ChannelEntity saved = channelRepository.save(entity);
 
             // Sync videos, shorts, playlists
-            syncChannelContent(accessToken, myChannel.getId());
+            syncChannelContent(accessToken, myChannel.getId(), userId);
 
             // Sync Live Streams
             try {
@@ -125,6 +126,7 @@ public class YouTubeService {
 
                         LiveStreamEntity streamEntity = LiveStreamEntity.builder()
                                 .streamId(lb.getId())
+                                .userId(userId)
                                 .channelId(myChannel.getId())
                                 .title(bSnippet != null ? bSnippet.getTitle() : "Live Stream")
                                 .description(bSnippet != null ? bSnippet.getDescription() : "")
@@ -144,17 +146,13 @@ public class YouTubeService {
         return null;
     }
 
-    public Optional<ChannelEntity> getMyChannel() {
-        return channelRepository.findByIsMineTrue();
-    }
-
-    public List<ChannelEntity> syncUserSubscriptions(String accessToken) throws Exception {
+    public List<ChannelEntity> syncUserSubscriptions(String accessToken, String userId) throws Exception {
         YouTube youtube = createYouTubeClient(accessToken);
         List<String> channelIds = new ArrayList<>();
 
         // Sync own uploads channel first
         try {
-            syncMyUploads(accessToken);
+            syncMyUploads(accessToken, userId);
         } catch (Exception e) {
             System.err.println("Notice: Could not sync own channel uploads: " + e.getMessage());
         }
@@ -222,7 +220,8 @@ public class YouTubeService {
 
                     ChannelEntity entity = ChannelEntity.builder()
                             .channelId(ch.getId())
-                            .title(snippet != null ? snippet.getTitle() : "Unknown Channel")
+                            .userId(userId)
+                            .title(snippet != null ? snippet.getTitle() : "Subscribed Channel")
                             .description(snippet != null ? snippet.getDescription() : "")
                             .thumbnailUrl(thumbnailUrl)
                             .subscriberCount(subscriberCount)
@@ -240,7 +239,7 @@ public class YouTubeService {
         return savedChannels;
     }
 
-    public List<VideoEntity> syncChannelContent(String accessToken, String channelId) throws Exception {
+    public List<VideoEntity> syncChannelContent(String accessToken, String channelId, String userId) throws Exception {
         YouTube youtube = createYouTubeClient(accessToken);
 
         // Lookup channel's uploads playlist ID
@@ -308,6 +307,7 @@ public class YouTubeService {
 
                         VideoEntity entity = VideoEntity.builder()
                                 .videoId(v.getId())
+                                .userId(userId)
                                 .channelId(channelId)
                                 .title(snippet != null ? snippet.getTitle() : "Untitled Video")
                                 .description(snippet != null ? snippet.getDescription() : "")
@@ -345,6 +345,7 @@ public class YouTubeService {
 
                     PlaylistEntity entity = PlaylistEntity.builder()
                             .playlistId(pl.getId())
+                            .userId(userId)
                             .channelId(channelId)
                             .title(snippet != null ? snippet.getTitle() : "Untitled Playlist")
                             .description(snippet != null ? snippet.getDescription() : "")
@@ -360,10 +361,6 @@ public class YouTubeService {
         }
 
         return savedVideos;
-    }
-
-    public List<ChannelEntity> getLocalSubscriptions() {
-        return channelRepository.findAll();
     }
 
     public List<VideoEntity> getChannelVideos(String channelId, Boolean shortsOnly) {

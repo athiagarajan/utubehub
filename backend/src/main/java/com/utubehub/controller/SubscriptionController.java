@@ -75,7 +75,7 @@ public class SubscriptionController {
     @GetMapping
     @Operation(summary = "List Subscriptions for Active Account", description = "Fetches active account's own channel and subscribed YouTube channels scoped by userId.")
     public ResponseEntity<List<ChannelEntity>> getSubscriptions(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -83,7 +83,7 @@ public class SubscriptionController {
 
         if (accessToken != null && !accessToken.startsWith("demo-")) {
             try {
-                List<ChannelEntity> liveChannels = youTubeService.syncUserSubscriptions(accessToken);
+                List<ChannelEntity> liveChannels = youTubeService.syncUserSubscriptions(accessToken, userId);
                 if (!liveChannels.isEmpty()) {
                     return ResponseEntity.ok(liveChannels);
                 }
@@ -103,7 +103,7 @@ public class SubscriptionController {
     @PostMapping("/sync")
     @Operation(summary = "Sync Subscriptions for Active Account", description = "Fetches live subscriptions and your own uploaded videos from YouTube Data API v3 using OAuth access token.")
     public ResponseEntity<?> syncSubscriptions(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -118,21 +118,21 @@ public class SubscriptionController {
         if (accessToken.startsWith("demo-")) {
             seedDemoDataForUser(userId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Demo mode sync completed for " + userId + "!",
+                    "message", "Demo mode sync completed for account: " + userId + "!",
                     "channelsSynced", 3
             ));
         }
 
         try {
-            List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken);
+            List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken, userId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Successfully synced " + synced.size() + " subscriptions for " + userId,
+                    "message", "Successfully synced " + synced.size() + " subscriptions for account: " + userId,
                     "channelsSynced", synced.size()
             ));
         } catch (Exception e) {
             seedDemoDataForUser(userId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Synced sample data for " + userId,
+                    "message", "Synced sample data for account: " + userId,
                     "notice", e.getMessage()
             ));
         }
@@ -142,7 +142,7 @@ public class SubscriptionController {
     @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific channel, with an optional filter for Shorts.")
     public ResponseEntity<List<VideoEntity>> getChannelVideos(
             @PathVariable String channelId,
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
             @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
@@ -153,7 +153,7 @@ public class SubscriptionController {
             String accessToken = resolveAccessToken(authHeader, authentication);
             if (accessToken != null && !accessToken.startsWith("demo-")) {
                 try {
-                    youTubeService.syncChannelContent(accessToken, channelId);
+                    youTubeService.syncChannelContent(accessToken, channelId, userId);
                     videos = youTubeService.getChannelVideos(channelId, shortsOnly);
                 } catch (Exception e) {
                     System.err.println("Channel content sync failed for " + channelId + ": " + e.getMessage());
@@ -170,7 +170,7 @@ public class SubscriptionController {
     @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
     public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(
             @PathVariable String channelId,
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -179,7 +179,7 @@ public class SubscriptionController {
             String accessToken = resolveAccessToken(authHeader, authentication);
             if (accessToken != null && !accessToken.startsWith("demo-")) {
                 try {
-                    youTubeService.syncChannelContent(accessToken, channelId);
+                    youTubeService.syncChannelContent(accessToken, channelId, userId);
                     playlists = youTubeService.getChannelPlaylists(channelId);
                 } catch (Exception e) {
                     System.err.println("Channel playlists sync failed for " + channelId + ": " + e.getMessage());
@@ -193,41 +193,40 @@ public class SubscriptionController {
     }
 
     public void seedDemoDataForUser(String userId) {
-        boolean isUser2 = userId != null && (userId.contains("user2") || userId.contains("account2") || userId.contains("2"));
-        String prefix = isUser2 ? "account2" : "account1";
-
-        String ownChannelId = "UC_OWN_CHANNEL_" + prefix.toUpperCase();
+        String cleanEmail = (userId != null && !userId.isBlank()) ? userId.trim() : "athiagarajan@gmail.com";
+        String userSlug = cleanEmail.replaceAll("[^a-zA-Z0-9]", "_").toLowerCase();
+        String ownChannelId = "UC_OWN_" + userSlug.toUpperCase();
 
         if (!channelRepository.existsById(ownChannelId)) {
             ChannelEntity ownChannel = ChannelEntity.builder()
                     .channelId(ownChannelId)
-                    .userId(userId)
-                    .title(prefix + " Uploaded Channel")
-                    .description("Uploaded videos, playlists, live streams, and posts for " + userId)
-                    .subscriberCount(isUser2 ? 9800L : 2400L)
-                    .videoCount(isUser2 ? 14L : 10L)
+                    .userId(cleanEmail)
+                    .title(cleanEmail + "'s YouTube Channel")
+                    .description("Uploaded videos, playlists, live streams, and community posts for " + cleanEmail)
+                    .subscriberCount(5200L)
+                    .videoCount(8L)
                     .isMine(true)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
             ChannelEntity subChannel1 = ChannelEntity.builder()
-                    .channelId("UC_SUB1_" + prefix.toUpperCase())
-                    .userId(userId)
-                    .title(isUser2 ? "Veritasium" : "Google Developers")
-                    .description(isUser2 ? "An element of truth - videos about science." : "Official Google Developers channel.")
-                    .subscriberCount(isUser2 ? 14500000L : 2450000L)
-                    .videoCount(isUser2 ? 380L : 5230L)
+                    .channelId("UC_SUB1_" + userSlug.toUpperCase())
+                    .userId(cleanEmail)
+                    .title("Google Developers")
+                    .description("Official Google Developers channel with the latest tutorials and news.")
+                    .subscriberCount(2450000L)
+                    .videoCount(5230L)
                     .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
             ChannelEntity subChannel2 = ChannelEntity.builder()
-                    .channelId("UC_SUB2_" + prefix.toUpperCase())
-                    .userId(userId)
-                    .title(isUser2 ? "IGN" : "Fireship")
-                    .description(isUser2 ? "The latest game reviews and trailers." : "High-intensity code tutorials.")
-                    .subscriberCount(isUser2 ? 17800000L : 3100000L)
-                    .videoCount(isUser2 ? 45000L : 650L)
+                    .channelId("UC_SUB2_" + userSlug.toUpperCase())
+                    .userId(cleanEmail)
+                    .title("Fireship")
+                    .description("High-intensity code tutorials to help you build apps faster.")
+                    .subscriberCount(3100000L)
+                    .videoCount(650L)
                     .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
@@ -237,33 +236,33 @@ public class SubscriptionController {
             // Seed Uploaded Videos
             videoRepository.saveAll(List.of(
                 VideoEntity.builder()
-                    .videoId("video_upload_1_" + prefix)
-                    .userId(userId)
+                    .videoId("video_upload_1_" + userSlug)
+                    .userId(cleanEmail)
                     .channelId(ownChannelId)
-                    .title(isUser2 ? "Workstation & Dual Monitor Setup Review 2026" : "UTubeHub Full Stack Architecture Demo")
-                    .description(isUser2 ? "Detailed walkthrough of developer setup." : "Building YouTube Hub with Spring Boot 3.3 and React 18!")
-                    .durationSeconds(isUser2 ? 540 : 420)
+                    .title("UTubeHub Multi-User Architecture & Spring Boot Demo")
+                    .description("Full walkthrough of multi-user Google OAuth integration & YouTube API Hub!")
+                    .durationSeconds(420)
                     .isShort(false)
                     .publishedAt(LocalDateTime.now().minusDays(1))
-                    .viewCount(isUser2 ? 4500L : 1200L)
+                    .viewCount(1850L)
                     .build(),
                 VideoEntity.builder()
-                    .videoId("video_upload_2_" + prefix)
-                    .userId(userId)
+                    .videoId("video_upload_2_" + userSlug)
+                    .userId(cleanEmail)
                     .channelId(ownChannelId)
-                    .title(isUser2 ? "Speedrun Developer Tips #shorts" : "Full Stack App Build Short #shorts")
-                    .description(isUser2 ? "Quick tips for developers #shorts" : "Building full stack apps fast #shorts")
+                    .title("Full Stack React 18 & Spring Boot 3 #shorts")
+                    .description("Building full stack microservices fast #shorts")
                     .durationSeconds(45)
                     .isShort(true)
                     .publishedAt(LocalDateTime.now().minusDays(3))
-                    .viewCount(isUser2 ? 9800L : 3400L)
+                    .viewCount(4200L)
                     .build(),
                 VideoEntity.builder()
-                    .videoId("video_sub_1_" + prefix)
-                    .userId(userId)
-                    .channelId("UC_SUB1_" + prefix.toUpperCase())
-                    .title(isUser2 ? "The Surprising Physics of Water" : "Google I/O 2026 Keynote")
-                    .description("Featured science & tech video.")
+                    .videoId("video_sub_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId("UC_SUB1_" + userSlug.toUpperCase())
+                    .title("Google I/O 2026 Developer Keynote Highlights")
+                    .description("Featured science & technology presentation from Google I/O.")
                     .durationSeconds(1200)
                     .isShort(false)
                     .publishedAt(LocalDateTime.now().minusDays(2))
@@ -274,11 +273,11 @@ public class SubscriptionController {
             // Seed Playlists
             playlistRepository.save(
                 PlaylistEntity.builder()
-                    .playlistId("playlist_1_" + prefix)
-                    .userId(userId)
+                    .playlistId("playlist_1_" + userSlug)
+                    .userId(cleanEmail)
                     .channelId(ownChannelId)
-                    .title(isUser2 ? "Hardware & Workstation Walkthroughs" : "UTubeHub Engineering Tutorials")
-                    .description("Collection of project tutorials created for " + userId)
+                    .title("UTubeHub Engineering & Architecture Tutorials")
+                    .description("Collection of project tutorials created for " + cleanEmail)
                     .itemCount(5)
                     .build()
             );
@@ -286,11 +285,11 @@ public class SubscriptionController {
             // Seed Live Streams
             liveStreamRepository.save(
                 LiveStreamEntity.builder()
-                    .streamId("stream_1_" + prefix)
-                    .userId(userId)
+                    .streamId("stream_1_" + userSlug)
+                    .userId(cleanEmail)
                     .channelId(ownChannelId)
-                    .title(isUser2 ? "Live Stream: Next.js & Spring Boot Live Coding Q&A" : "Live Stream: Java & React Development Session")
-                    .description("Interactive coding stream for " + userId)
+                    .title("Live Stream: Full Stack Development & Google OAuth Q&A")
+                    .description("Interactive coding stream for " + cleanEmail)
                     .status("completed")
                     .actualStartTime(LocalDateTime.now().minusDays(5))
                     .build()
@@ -299,12 +298,12 @@ public class SubscriptionController {
             // Seed Community Posts
             postRepository.save(
                 PostEntity.builder()
-                    .postId("post_1_" + prefix)
-                    .userId(userId)
+                    .postId("post_1_" + userSlug)
+                    .userId(cleanEmail)
                     .channelId(ownChannelId)
-                    .content("🚀 Welcome to " + userId + "'s channel updates & project announcements!")
+                    .content("🚀 Welcome to " + cleanEmail + "'s official channel updates & announcements!")
                     .publishedAt(LocalDateTime.now().minusDays(2))
-                    .likeCount(64L)
+                    .likeCount(88L)
                     .build()
             );
         }

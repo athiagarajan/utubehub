@@ -2,9 +2,19 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
-  const [activeUserEmail, setActiveUserEmail] = useState('account1@gmail.com');
+  const [activeUserEmail, setActiveUserEmail] = useState('athiagarajan@gmail.com');
   const [googleUser, setGoogleUser] = useState(null);
   const [userToken, setUserToken] = useState(null);
+
+  // Available real Google user accounts in dropdown
+  const [accountList, setAccountList] = useState([
+    'athiagarajan@gmail.com',
+    'alagesanthiagu@gmail.com',
+    'utubehub.tester1@gmail.com',
+    'utubehub.tester2@gmail.com'
+  ]);
+  const [isAddingNewEmail, setIsAddingNewEmail] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState('');
 
   const [subscriptions, setSubscriptions] = useState([]);
   const [ownChannel, setOwnChannel] = useState(null);
@@ -24,7 +34,6 @@ export default function App() {
 
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
-  const [customEmailInput, setCustomEmailInput] = useState('');
 
   useEffect(() => {
     // Check Backend Health Status
@@ -39,24 +48,49 @@ export default function App() {
       .then((data) => {
         if (data.authenticated && data.email) {
           setGoogleUser(data);
+          if (!accountList.includes(data.email)) {
+            setAccountList((prev) => [data.email, ...prev]);
+          }
           setActiveUserEmail(data.email);
           loadAllChannels(data.email);
         } else {
-          setActiveUserEmail('account1@gmail.com');
-          loadAllChannels('account1@gmail.com');
+          loadAllChannels('athiagarajan@gmail.com');
         }
       })
       .catch(() => {
-        setActiveUserEmail('account1@gmail.com');
-        loadAllChannels('account1@gmail.com');
+        loadAllChannels('athiagarajan@gmail.com');
       });
   }, []);
 
   const switchUserAccount = (email) => {
     setActiveUserEmail(email);
+    setIsAddingNewEmail(false);
     loadAllChannels(email).then(() => {
       triggerFullSync(email);
     });
+  };
+
+  const handleDropdownChange = (e) => {
+    const val = e.target.value;
+    if (val === 'ADD_NEW_ACCOUNT') {
+      setIsAddingNewEmail(true);
+    } else {
+      setIsAddingNewEmail(false);
+      switchUserAccount(val);
+    }
+  };
+
+  const handleAddNewEmailSubmit = (e) => {
+    e.preventDefault();
+    const clean = newEmailInput.trim();
+    if (clean) {
+      if (!accountList.includes(clean)) {
+        setAccountList((prev) => [...prev, clean]);
+      }
+      setNewEmailInput('');
+      setIsAddingNewEmail(false);
+      switchUserAccount(clean);
+    }
   };
 
   const loadAllChannels = (email = activeUserEmail) => {
@@ -196,17 +230,9 @@ export default function App() {
     }
   };
 
-  const handleAddCustomAccount = (e) => {
-    e.preventDefault();
-    if (customEmailInput.trim()) {
-      switchUserAccount(customEmailInput.trim());
-      setCustomEmailInput('');
-    }
-  };
-
   return (
     <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header Bar with Real Google Email & Multi-User Account Switcher */}
+      {/* Header Bar with Single Select Dropdown Header Selector */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -216,72 +242,56 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-          {/* User Account Switcher Selector with Actual Emails */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
-            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Active Account:</span>
+          {/* Clean Single-Select Pulldown Header Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
+            <span style={{ color: '#a1a1aa', fontSize: '0.85rem', fontWeight: 'bold' }}>👤 Active User Account:</span>
             
-            {googleUser && (
-              <button
-                onClick={() => switchUserAccount(googleUser.email)}
-                style={{
-                  background: activeUserEmail === googleUser.email ? '#059669' : '#27272a',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                ✓ {googleUser.email}
-              </button>
+            <select
+              value={isAddingNewEmail ? 'ADD_NEW_ACCOUNT' : activeUserEmail}
+              onChange={handleDropdownChange}
+              style={{
+                background: '#09090b',
+                color: '#ffffff',
+                border: '1px solid #3f3f46',
+                borderRadius: '6px',
+                padding: '0.4rem 0.8rem',
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {googleUser && (
+                <option value={googleUser.email}>
+                  ✓ {googleUser.email} (Logged in via Google)
+                </option>
+              )}
+              {accountList.map((email) => (
+                <option key={email} value={email}>
+                  {email}
+                </option>
+              ))}
+              <option value="ADD_NEW_ACCOUNT">+ Add / Enter New Google Account...</option>
+            </select>
+
+            {/* Inline Input Field shown only when "+ Add / Enter New Google Account..." is selected */}
+            {isAddingNewEmail && (
+              <form onSubmit={handleAddNewEmailSubmit} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                <input
+                  type="email"
+                  placeholder="Enter google email..."
+                  value={newEmailInput}
+                  onChange={(e) => setNewEmailInput(e.target.value)}
+                  required
+                  style={{ background: '#09090b', color: '#fff', border: '1px solid #2563eb', borderRadius: '6px', padding: '0.35rem 0.6rem', fontSize: '0.8rem', width: '180px' }}
+                />
+                <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Add
+                </button>
+                <button type="button" onClick={() => setIsAddingNewEmail(false)} style={{ background: '#3f3f46', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.35rem 0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </form>
             )}
-
-            <button
-              onClick={() => switchUserAccount('account1@gmail.com')}
-              style={{
-                background: activeUserEmail === 'account1@gmail.com' ? '#2563eb' : '#27272a',
-                color: '#fff',
-                border: 'none',
-                padding: '0.35rem 0.75rem',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              account1@gmail.com
-            </button>
-            <button
-              onClick={() => switchUserAccount('account2@gmail.com')}
-              style={{
-                background: activeUserEmail === 'account2@gmail.com' ? '#2563eb' : '#27272a',
-                color: '#fff',
-                border: 'none',
-                padding: '0.35rem 0.75rem',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              account2@gmail.com
-            </button>
-
-            {/* Custom Email Input */}
-            <form onSubmit={handleAddCustomAccount} style={{ display: 'flex', gap: '0.3rem' }}>
-              <input
-                type="email"
-                placeholder="Enter google email..."
-                value={customEmailInput}
-                onChange={(e) => setCustomEmailInput(e.target.value)}
-                style={{ background: '#09090b', color: '#fff', border: '1px solid #3f3f46', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', width: '150px' }}
-              />
-              <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
-                Switch
-              </button>
-            </form>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -358,7 +368,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active account: <b>{activeUserEmail}</b>
+          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active user account: <b>{activeUserEmail}</b>
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -553,7 +563,7 @@ export default function App() {
           {isYourContentLoading ? (
             <p style={{ color: '#4ade80' }}>⏳ Loading your {yourContentTab}...</p>
           ) : yourContentData.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUserEmail}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
+            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active user account {activeUserEmail}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
               {yourContentData.map((item, idx) => (

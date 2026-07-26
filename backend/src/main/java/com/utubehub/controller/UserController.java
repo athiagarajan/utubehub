@@ -74,7 +74,7 @@ public class UserController {
     @PostMapping("/sync")
     @Operation(summary = "Sync Your Contents with YouTube API", description = "Triggers live sync of your account's uploaded videos, playlists, and live streams from YouTube Data API v3.")
     public ResponseEntity<?> syncMyContent(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
@@ -95,9 +95,9 @@ public class UserController {
         }
 
         try {
-            ChannelEntity myChannel = youTubeService.syncMyUploads(accessToken);
+            ChannelEntity myChannel = youTubeService.syncMyUploads(accessToken, userId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Successfully synced your channel uploads, playlists, and live streams.",
+                    "message", "Successfully synced your channel uploads, playlists, and live streams for account: " + userId,
                     "channelId", myChannel != null ? myChannel.getChannelId() : "N/A"
             ));
         } catch (Exception e) {
@@ -112,7 +112,7 @@ public class UserController {
     @GetMapping("/channel")
     @Operation(summary = "Get Your Channel Profile", description = "Returns your own YouTube channel profile and uploads metadata.")
     public ResponseEntity<?> getMyChannel(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId) {
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
         Optional<ChannelEntity> myChannel = channelRepository.findByUserIdAndIsMineTrue(userId);
         if (myChannel.isEmpty()) {
             subscriptionController.seedDemoDataForUser(userId);
@@ -124,7 +124,7 @@ public class UserController {
     @GetMapping("/videos")
     @Operation(summary = "Get Your Uploaded Videos & Shorts", description = "Retrieves videos uploaded by your YouTube account, with an optional filter for Shorts.")
     public ResponseEntity<List<VideoEntity>> getMyVideos(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
             @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
             @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly) {
         
@@ -144,7 +144,7 @@ public class UserController {
     @GetMapping("/playlists")
     @Operation(summary = "Get Your Playlists", description = "Retrieves playlists created and owned by your YouTube account.")
     public ResponseEntity<List<PlaylistEntity>> getMyPlaylists(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId) {
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
         List<PlaylistEntity> playlists = playlistRepository.findByUserId(userId);
         if (playlists.isEmpty()) {
             subscriptionController.seedDemoDataForUser(userId);
@@ -156,7 +156,7 @@ public class UserController {
     @GetMapping("/live")
     @Operation(summary = "Get Your Live Streams", description = "Retrieves live streams and broadcasts created by your account.")
     public ResponseEntity<List<LiveStreamEntity>> getMyLiveStreams(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId) {
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
         List<LiveStreamEntity> streams = liveStreamRepository.findByUserId(userId);
         if (streams.isEmpty()) {
             subscriptionController.seedDemoDataForUser(userId);
@@ -168,7 +168,7 @@ public class UserController {
     @GetMapping("/posts")
     @Operation(summary = "Get Your Community Posts", description = "Retrieves community posts and announcements created by your account.")
     public ResponseEntity<List<PostEntity>> getMyPosts(
-            @RequestParam(required = false, defaultValue = "user1@gmail.com") String userId) {
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
         List<PostEntity> posts = postRepository.findByUserId(userId);
         if (posts.isEmpty()) {
             subscriptionController.seedDemoDataForUser(userId);
