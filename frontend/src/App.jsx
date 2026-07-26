@@ -10,6 +10,7 @@ export default function App() {
   const [selectedSubscribedChannel, setSelectedSubscribedChannel] = useState(null);
   const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
   const [subscribedContent, setSubscribedContent] = useState([]);
+  const [isSubscribedSyncing, setIsSubscribedSyncing] = useState(false);
 
   // Your Contents state
   const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts'
@@ -62,6 +63,23 @@ export default function App() {
           headers: { 'Authorization': `Bearer ${data.accessToken}` }
         })
         .then(() => loadAllChannels());
+      });
+  };
+
+  const syncSubscribedChannels = () => {
+    setIsSubscribedSyncing(true);
+    const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
+
+    fetch('/api/v1/subscriptions/sync', { method: 'POST', headers })
+      .then((res) => res.json())
+      .then((data) => {
+        setIsSubscribedSyncing(false);
+        alert(data.message || 'Subscribed channels sync completed!');
+        loadAllChannels();
+      })
+      .catch((err) => {
+        setIsSubscribedSyncing(false);
+        console.error('Subscriptions sync error:', err);
       });
   };
 
@@ -266,7 +284,16 @@ export default function App() {
         <div style={{ display: 'grid', gridTemplateColumns: selectedSubscribedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
           {/* Subscribed Channels Sidebar */}
           <div>
-            <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.3rem' }}>Subscribed Channels</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ color: '#f4f4f5', margin: 0, fontSize: '1.25rem' }}>Subscribed Channels</h2>
+              <button
+                onClick={syncSubscribedChannels}
+                disabled={isSubscribedSyncing}
+                style={{ background: '#cc0000', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {isSubscribedSyncing ? '🔄 Syncing...' : '🔄 Sync Channels'}
+              </button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {subscriptions.map((sub) => (
                 <div
@@ -373,7 +400,7 @@ export default function App() {
                 key={tab}
                 onClick={() => loadYourContent(tab)}
                 style={{
-                  padding: '0.5.rem 1.25rem',
+                  padding: '0.5rem 1.25rem',
                   borderRadius: '6px',
                   border: 'none',
                   background: yourContentTab === tab ? '#059669' : '#27272a',
