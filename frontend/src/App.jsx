@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
-  const [activeUser, setActiveUser] = useState('user1@gmail.com');
+  const [activeUserEmail, setActiveUserEmail] = useState('Default Account');
+  const [googleUser, setGoogleUser] = useState(null);
   const [userToken, setUserToken] = useState(null);
 
   const [subscriptions, setSubscriptions] = useState([]);
@@ -32,20 +33,34 @@ export default function App() {
       .then((data) => setHealthStatus(`Backend Online (${data.service} v${data.version})`))
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
-    // Fetch Channels catalog for current user
-    loadAllChannels(activeUser);
+    // Check if real Google user is authenticated via OAuth
+    fetch('/api/v1/auth/user')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated && data.email) {
+          setGoogleUser(data);
+          setActiveUserEmail(data.email);
+          loadAllChannels(data.email);
+        } else {
+          setActiveUserEmail('account1@gmail.com');
+          loadAllChannels('account1@gmail.com');
+        }
+      })
+      .catch(() => {
+        setActiveUserEmail('account1@gmail.com');
+        loadAllChannels('account1@gmail.com');
+      });
   }, []);
 
-  const switchUserAccount = (userAccount) => {
-    setActiveUser(userAccount);
-    loadAllChannels(userAccount).then(() => {
-      // Auto Sync all content on user switch
-      triggerFullSync(userAccount);
+  const switchUserAccount = (email) => {
+    setActiveUserEmail(email);
+    loadAllChannels(email).then(() => {
+      triggerFullSync(email);
     });
   };
 
-  const loadAllChannels = (userAccount = activeUser) => {
-    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
+  const loadAllChannels = (email = activeUserEmail) => {
+    const userId = email.includes('2') ? 'user2' : 'user1';
 
     return fetch(`/api/v1/subscriptions?userId=${userId}`)
       .then((res) => res.json())
@@ -63,16 +78,16 @@ export default function App() {
           setSubscribedContent([]);
         }
 
-        loadYourContent('videos', userAccount);
+        loadYourContent('videos', email);
         return { mine, subbed };
       })
       .catch((err) => console.error('Failed to load channels:', err));
   };
 
-  const triggerFullSync = (userAccount = activeUser) => {
+  const triggerFullSync = (email = activeUserEmail) => {
     setIsSyncing(true);
     setIsSubscribedSyncing(true);
-    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
+    const userId = email.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     Promise.all([
@@ -82,7 +97,7 @@ export default function App() {
     .then(() => {
       setIsSyncing(false);
       setIsSubscribedSyncing(false);
-      loadAllChannels(userAccount);
+      loadAllChannels(email);
     })
     .catch((err) => {
       setIsSyncing(false);
@@ -96,14 +111,14 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         setUserToken(data.accessToken);
-        alert(`Demo Mode Activated for ${activeUser}!\nToken: ${data.accessToken}`);
-        triggerFullSync(activeUser);
+        alert(`Demo Mode Activated for ${activeUserEmail}!\nToken: ${data.accessToken}`);
+        triggerFullSync(activeUserEmail);
       });
   };
 
   const syncSubscribedChannels = () => {
     setIsSubscribedSyncing(true);
-    const userId = activeUser.includes('user2') ? 'user2' : 'user1';
+    const userId = activeUserEmail.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     fetch(`/api/v1/subscriptions/sync?userId=${userId}`, { method: 'POST', headers })
@@ -111,7 +126,7 @@ export default function App() {
       .then((data) => {
         setIsSubscribedSyncing(false);
         alert(data.message || 'Subscribed channels sync completed!');
-        loadAllChannels(activeUser);
+        loadAllChannels(activeUserEmail);
       })
       .catch((err) => {
         setIsSubscribedSyncing(false);
@@ -121,7 +136,7 @@ export default function App() {
 
   const syncYourContents = () => {
     setIsSyncing(true);
-    const userId = activeUser.includes('user2') ? 'user2' : 'user1';
+    const userId = activeUserEmail.includes('2') ? 'user2' : 'user1';
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     fetch(`/api/v1/user/sync?userId=${userId}`, { method: 'POST', headers })
@@ -129,7 +144,7 @@ export default function App() {
       .then((data) => {
         setIsSyncing(false);
         alert(data.message || 'Sync completed!');
-        loadAllChannels(activeUser);
+        loadAllChannels(activeUserEmail);
       })
       .catch((err) => {
         setIsSyncing(false);
@@ -154,10 +169,10 @@ export default function App() {
       .catch((err) => console.error(`Failed to load subscribed ${tab}:`, err));
   };
 
-  const loadYourContent = (tab = 'videos', userAccount = activeUser) => {
+  const loadYourContent = (tab = 'videos', email = activeUserEmail) => {
     setYourContentTab(tab);
     setIsYourContentLoading(true);
-    const userId = userAccount.includes('user2') ? 'user2' : 'user1';
+    const userId = email.includes('2') ? 'user2' : 'user1';
     let endpoint = `/api/v1/user/${tab}?userId=${userId}`;
 
     fetch(endpoint)
@@ -175,7 +190,7 @@ export default function App() {
 
   const switchToUploadedTab = () => {
     setMainNavTab('uploaded');
-    loadYourContent(yourContentTab, activeUser);
+    loadYourContent(yourContentTab, activeUserEmail);
   };
 
   const switchToSubscribedTab = () => {
@@ -197,7 +212,7 @@ export default function App() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header Bar with Multi-User Email Account Switcher */}
+      {/* Header Bar with Real Google Email & Multi-User Account Switcher */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -207,13 +222,20 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-          {/* User Account Switcher Selector with Email Accounts */}
+          {/* User Account Switcher Selector with Actual Emails */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#18181b', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid #3f3f46' }}>
-            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Active Account:</span>
+            <span style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 'bold' }}>👤 Account:</span>
+            
+            {googleUser && (
+              <span style={{ background: '#059669', color: '#fff', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                ✓ {googleUser.email}
+              </span>
+            )}
+
             <button
-              onClick={() => switchUserAccount('user1@gmail.com')}
+              onClick={() => switchUserAccount('account1@gmail.com')}
               style={{
-                background: activeUser === 'user1@gmail.com' ? '#2563eb' : '#27272a',
+                background: activeUserEmail === 'account1@gmail.com' ? '#2563eb' : '#27272a',
                 color: '#fff',
                 border: 'none',
                 padding: '0.3rem 0.75rem',
@@ -223,12 +245,12 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              user1@gmail.com
+              account1@gmail.com
             </button>
             <button
-              onClick={() => switchUserAccount('user2@gmail.com')}
+              onClick={() => switchUserAccount('account2@gmail.com')}
               style={{
-                background: activeUser === 'user2@gmail.com' ? '#059669' : '#27272a',
+                background: activeUserEmail === 'account2@gmail.com' ? '#059669' : '#27272a',
                 color: '#fff',
                 border: 'none',
                 padding: '0.3rem 0.75rem',
@@ -238,17 +260,17 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              user2@gmail.com
+              account2@gmail.com
             </button>
 
             {/* Custom Email Input */}
             <form onSubmit={handleAddCustomAccount} style={{ display: 'flex', gap: '0.3rem' }}>
               <input
                 type="email"
-                placeholder="Enter email..."
+                placeholder="Enter google email..."
                 value={customEmailInput}
                 onChange={(e) => setCustomEmailInput(e.target.value)}
-                style={{ background: '#09090b', color: '#fff', border: '1px solid #3f3f46', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', width: '130px' }}
+                style={{ background: '#09090b', color: '#fff', border: '1px solid #3f3f46', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', width: '150px' }}
               />
               <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>
                 Switch
@@ -270,7 +292,7 @@ export default function App() {
               href="http://localhost:8080/oauth2/authorization/google"
               style={{ color: '#ffffff', fontSize: '0.8rem', textDecoration: 'none', background: '#2563eb', padding: '0.4rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}
             >
-              🔑 Log in Google
+              🔑 Log in with Google
             </a>
             <a
               href="/swagger-ui.html"
@@ -330,7 +352,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active account: <b>{activeUser}</b>
+          Search across {mainNavTab === 'uploaded' ? 'your contents' : 'all subscribed channels'} for active account: <b>{activeUserEmail}</b>
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -494,7 +516,7 @@ export default function App() {
                 {isSyncing ? '🔄 Syncing...' : '🔄 Sync Your Contents'}
               </button>
               <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
-                ACTIVE: {activeUser}
+                ACTIVE: {activeUserEmail}
               </span>
             </div>
           </div>
@@ -504,7 +526,7 @@ export default function App() {
             {['videos', 'playlists', 'live', 'posts'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => loadYourContent(tab, activeUser)}
+                onClick={() => loadYourContent(tab, activeUserEmail)}
                 style={{
                   padding: '0.5rem 1.25rem',
                   borderRadius: '6px',
@@ -525,7 +547,7 @@ export default function App() {
           {isYourContentLoading ? (
             <p style={{ color: '#4ade80' }}>⏳ Loading your {yourContentTab}...</p>
           ) : yourContentData.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUser}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
+            <p style={{ color: '#71717a' }}>No {yourContentTab} found for active account {activeUserEmail}. Click "🔄 Sync Your Contents" or Log in with Google.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
               {yourContentData.map((item, idx) => (

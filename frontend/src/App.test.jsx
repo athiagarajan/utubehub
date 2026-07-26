@@ -4,11 +4,16 @@ import App from './App';
 
 describe('UTubeHub App Component', () => {
   it('renders application header and title', () => {
-    // Mock fetch for health and subscriptions endpoints
+    // Mock fetch for health, auth user, and subscriptions endpoints
     global.fetch = vi.fn().mockImplementation((url) => {
       if (url.includes('/api/v1/health')) {
         return Promise.resolve({
           json: () => Promise.resolve({ status: 'UP', service: 'utubehub-backend', version: '1.0.0' }),
+        });
+      }
+      if (url.includes('/api/v1/auth/user')) {
+        return Promise.resolve({
+          json: () => Promise.resolve({ authenticated: true, email: 'thiagu.test@gmail.com' }),
         });
       }
       return Promise.resolve({
@@ -19,7 +24,8 @@ describe('UTubeHub App Component', () => {
     render(<App />);
 
     expect(screen.getByText(/UTubeHub/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/user1@gmail.com/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/user2@gmail.com/i)).toBeInTheDocument();
+    expect(screen.getByText(/👤 Account:/i)).toBeInTheDocument();
+    expect(screen.getByText(/account1@gmail.com/i)).toBeInTheDocument();
+    expect(screen.getByText(/account2@gmail.com/i)).toBeInTheDocument();
   });
 });

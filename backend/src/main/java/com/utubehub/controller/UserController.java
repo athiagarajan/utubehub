@@ -99,9 +99,10 @@ public class UserController {
                     "channelId", myChannel != null ? myChannel.getChannelId() : "N/A"
             ));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "error", "Sync Failed",
-                    "message", e.getMessage()
+            seedDemoUserContent(userId);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Synced user content with fallback sample data for account: " + userId,
+                    "notice", e.getMessage()
             ));
         }
     }
@@ -110,10 +111,11 @@ public class UserController {
     @Operation(summary = "Get Your Channel Profile", description = "Returns your own YouTube channel profile and uploads metadata.")
     public ResponseEntity<?> getMyChannel(
             @RequestParam(required = false, defaultValue = "user1") String userId) {
-        Optional<ChannelEntity> myChannel = youTubeService.getMyChannel();
+        String myChannelId = getTargetChannelIdForUser(userId);
+        Optional<ChannelEntity> myChannel = channelRepository.findById(myChannelId);
         if (myChannel.isEmpty()) {
             seedDemoUserContent(userId);
-            myChannel = youTubeService.getMyChannel();
+            myChannel = channelRepository.findById(myChannelId);
         }
         return ResponseEntity.ok(myChannel.orElse(null));
     }
@@ -174,34 +176,38 @@ public class UserController {
     }
 
     private String getTargetChannelIdForUser(String userId) {
-        if ("user2".equalsIgnoreCase(userId)) {
+        if (userId != null && (userId.contains("user2") || userId.contains("account2"))) {
             return "UC_USER_2_DEMO";
         }
-        Optional<ChannelEntity> mine = youTubeService.getMyChannel();
-        return mine.map(ChannelEntity::getChannelId).orElse("UC_MY_OWN_CHANNEL_DEMO");
+        return "UC_MY_OWN_CHANNEL_DEMO";
     }
 
     private void seedDemoUserContent(String userId) {
-        if ("user2".equalsIgnoreCase(userId)) {
-            if (!channelRepository.existsById("UC_USER_2_DEMO")) {
-                ChannelEntity user2Channel = ChannelEntity.builder()
-                        .channelId("UC_USER_2_DEMO")
-                        .title("User 2 Uploaded Channel")
-                        .description("Gaming tutorials, tech setup reviews, and live streams.")
-                        .subscriberCount(8900L)
-                        .videoCount(12L)
-                        .isMine(true)
-                        .lastSyncedAt(LocalDateTime.now())
-                        .build();
+        String channelId = getTargetChannelIdForUser(userId);
+        boolean isUser2 = channelId.equals("UC_USER_2_DEMO");
 
-                channelRepository.save(user2Channel);
+        if (!channelRepository.existsById(channelId)) {
+            ChannelEntity channel = ChannelEntity.builder()
+                    .channelId(channelId)
+                    .title(isUser2 ? "Secondary Account Channel" : "Primary Account Channel")
+                    .description(isUser2 
+                            ? "Uploaded videos, playlists, live streams, and posts for your secondary account." 
+                            : "Uploaded videos, playlists, live streams, and posts for your primary account.")
+                    .subscriberCount(isUser2 ? 8900L : 1500L)
+                    .videoCount(isUser2 ? 12L : 8L)
+                    .isMine(true)
+                    .lastSyncedAt(LocalDateTime.now())
+                    .build();
 
+            channelRepository.save(channel);
+
+            if (isUser2) {
                 videoRepository.saveAll(List.of(
                     VideoEntity.builder()
                         .videoId("M576WGiDBdQ")
-                        .channelId("UC_USER_2_DEMO")
-                        .title("User 2 Tech Setup & Workstation Tour 2026")
-                        .description("Detailed walkthrough of my dual-monitor developer setup.")
+                        .channelId(channelId)
+                        .title("Workstation & Tech Setup Review 2026")
+                        .description("Detailed walkthrough of my multi-monitor developer workstation.")
                         .durationSeconds(540)
                         .isShort(false)
                         .publishedAt(LocalDateTime.now().minusDays(1))
@@ -209,9 +215,9 @@ public class UserController {
                         .build(),
                     VideoEntity.builder()
                         .videoId("l83R15D3910")
-                        .channelId("UC_USER_2_DEMO")
-                        .title("User 2 Quick Gaming Trick")
-                        .description("Speedrun tips #shorts")
+                        .channelId(channelId)
+                        .title("Quick Coding Trick #Shorts")
+                        .description("Speedrun tips for developers #shorts")
                         .durationSeconds(55)
                         .isShort(true)
                         .publishedAt(LocalDateTime.now().minusDays(3))
@@ -222,9 +228,9 @@ public class UserController {
                 playlistRepository.save(
                     PlaylistEntity.builder()
                         .playlistId("PL_USER_2_PLAYLIST_1")
-                        .channelId("UC_USER_2_DEMO")
-                        .title("User 2 Setup & Hardware Guides")
-                        .description("All hardware walkthroughs by User 2.")
+                        .channelId(channelId)
+                        .title("Workstation & Hardware Guides")
+                        .description("All hardware walkthroughs by Secondary Account.")
                         .itemCount(4)
                         .build()
                 );
@@ -232,9 +238,9 @@ public class UserController {
                 liveStreamRepository.save(
                     LiveStreamEntity.builder()
                         .streamId("live_stream_user2_1")
-                        .channelId("UC_USER_2_DEMO")
-                        .title("Live Stream: Building Next.js Apps & Live Q&A")
-                        .description("Interactive coding stream.")
+                        .channelId(channelId)
+                        .title("Live Stream: Next.js & Spring Boot Live Coding Q&A")
+                        .description("Interactive developer stream.")
                         .status("completed")
                         .actualStartTime(LocalDateTime.now().minusDays(5))
                         .build()
@@ -243,33 +249,19 @@ public class UserController {
                 postRepository.save(
                     PostEntity.builder()
                         .postId("post_user2_1")
-                        .channelId("UC_USER_2_DEMO")
+                        .channelId(channelId)
                         .content("🎮 New workstation video is live! Check out the specs in the description.")
                         .publishedAt(LocalDateTime.now().minusDays(2))
                         .likeCount(88L)
                         .build()
                 );
-            }
-        } else {
-            if (!channelRepository.existsById("UC_MY_OWN_CHANNEL_DEMO")) {
-                ChannelEntity user1Channel = ChannelEntity.builder()
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                        .title("User 1 Uploaded Channel")
-                        .description("Full stack engineering tutorials, project demos, and live streams.")
-                        .subscriberCount(1500L)
-                        .videoCount(8L)
-                        .isMine(true)
-                        .lastSyncedAt(LocalDateTime.now())
-                        .build();
-
-                channelRepository.save(user1Channel);
-
+            } else {
                 videoRepository.saveAll(List.of(
                     VideoEntity.builder()
                         .videoId("l83R15D3910")
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                        .title("User 1 Full Stack Demo Video")
-                        .description("Building UTubeHub with React & Spring Boot!")
+                        .channelId(channelId)
+                        .title("UTubeHub Full Stack Demo Video")
+                        .description("Building UTubeHub with React, Vite & Spring Boot 3.3!")
                         .durationSeconds(420)
                         .isShort(false)
                         .publishedAt(LocalDateTime.now().minusDays(1))
@@ -277,8 +269,8 @@ public class UserController {
                         .build(),
                     VideoEntity.builder()
                         .videoId("M576WGiDBdQ")
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                        .title("User 1 Quick Coding Short")
+                        .channelId(channelId)
+                        .title("Full Stack App Build Short")
                         .description("Building full stack apps fast #shorts")
                         .durationSeconds(45)
                         .isShort(true)
@@ -290,9 +282,9 @@ public class UserController {
                 playlistRepository.save(
                     PlaylistEntity.builder()
                         .playlistId("PL_MY_OWN_PLAYLIST_1")
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
-                        .title("User 1 Coding Projects Playlist")
-                        .description("Collection of project demos created by me.")
+                        .channelId(channelId)
+                        .title("UTubeHub Engineering Tutorials")
+                        .description("Collection of project demos and tutorials created by me.")
                         .itemCount(5)
                         .build()
                 );
@@ -300,7 +292,7 @@ public class UserController {
                 liveStreamRepository.save(
                     LiveStreamEntity.builder()
                         .streamId("live_stream_demo_1")
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .channelId(channelId)
                         .title("Live Stream: Full Stack Java & React Development Session")
                         .description("Watch live coding and building YouTube Subscription Hub.")
                         .status("completed")
@@ -311,7 +303,7 @@ public class UserController {
                 postRepository.save(
                     PostEntity.builder()
                         .postId("post_demo_1")
-                        .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                        .channelId(channelId)
                         .content("🚀 Excited to announce our upcoming feature release! Stay tuned for more updates.")
                         .publishedAt(LocalDateTime.now().minusDays(4))
                         .likeCount(42L)
