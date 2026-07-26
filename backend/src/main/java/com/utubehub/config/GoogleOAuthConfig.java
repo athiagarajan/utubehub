@@ -8,12 +8,10 @@ import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.config.oauth2.client.CommonOAuth2Provider;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -56,18 +54,10 @@ public class GoogleOAuthConfig {
                 ? secrets.getDetails().getClientSecret()
                 : System.getenv().getOrDefault("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
 
-        ClientRegistration googleRegistration = ClientRegistration.withRegistrationId("google")
+        ClientRegistration googleRegistration = CommonOAuth2Provider.GOOGLE.getBuilder("google")
                 .clientId(clientId)
                 .clientSecret(clientSecret)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
                 .scope("openid", "profile", "email", "https://www.googleapis.com/auth/youtube.readonly")
-                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
-                .tokenUri("https://oauth2.googleapis.com/token")
-                .userInfoUri("https://www.googleapis.com/oauth2/v3/userinfo")
-                .userNameAttributeName(IdTokenClaimNames.SUB)
-                .clientName("Google")
                 .build();
 
         return new InMemoryClientRegistrationRepository(googleRegistration);

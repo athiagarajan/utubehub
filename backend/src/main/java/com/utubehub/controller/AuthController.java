@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,7 +50,23 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of(
                 "authenticated", false,
-                "message", "User not logged in via Google OAuth. Please visit http://localhost:8080/oauth2/authorization/google to log in."
+                "message", "User not logged in via Google OAuth. Please visit http://localhost:8080/oauth2/authorization/google to log in or use /api/v1/auth/demo-login."
+        ));
+    }
+
+    @PostMapping("/demo-login")
+    @Operation(summary = "Generate Demo Session Token", description = "Generates a instant local Demo OAuth Access Token for unblocked testing in Swagger UI and the React App while Google Cloud Console access is being configured.")
+    public ResponseEntity<?> generateDemoToken() {
+        return ResponseEntity.ok(Map.of(
+                "authenticated", true,
+                "tokenType", "Bearer",
+                "accessToken", "demo-youtube-oauth-token-utubehub-2026",
+                "user", Map.of(
+                        "name", "Demo YouTube Creator",
+                        "email", "demo.user@utubehub.com",
+                        "picture", "https://yt3.googleusercontent.com/ytc/AIdro_k..."
+                ),
+                "message", "Demo OAuth token generated! Use this token in Swagger UI's Authorize button."
         ));
     }
 

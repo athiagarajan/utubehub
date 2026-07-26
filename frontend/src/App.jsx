@@ -8,6 +8,7 @@ export default function App() {
   const [channelContent, setChannelContent] = useState([]);
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
+  const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
     // Check Backend Health Status
@@ -19,9 +20,34 @@ export default function App() {
     // Fetch Subscriptions catalog
     fetch('/api/v1/subscriptions')
       .then((res) => res.json())
-      .then((data) => setSubscriptions(data))
+      .then((data) => {
+        setSubscriptions(data);
+        if (data.length > 0) {
+          selectChannel(data[0]);
+        }
+      })
       .catch((err) => console.error('Failed to load subscriptions:', err));
   }, []);
+
+  const triggerDemoLogin = () => {
+    fetch('/api/v1/auth/demo-login', { method: 'POST' })
+      .then((res) => res.json())
+      .then((data) => {
+        setUserToken(data.accessToken);
+        alert(`Demo Mode Activated! Token generated:\n${data.accessToken}\n\nCopy this token into Swagger UI's Authorize button.`);
+        // Sync demo content
+        fetch('/api/v1/subscriptions/sync', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${data.accessToken}` }
+        })
+        .then(() => fetch('/api/v1/subscriptions'))
+        .then((res) => res.json())
+        .then((subs) => {
+          setSubscriptions(subs);
+          if (subs.length > 0) selectChannel(subs[0]);
+        });
+      });
+  };
 
   const selectChannel = (channel) => {
     setSelectedChannel(channel);
@@ -53,23 +79,29 @@ export default function App() {
           </h1>
           <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa' }}>YouTube Subscriptions, Media Player & AI Intelligence Hub</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ fontSize: '0.85rem', color: healthStatus.includes('Online') ? '#4ade80' : '#f87171' }}>
             ● {healthStatus}
           </div>
+          <button
+            onClick={triggerDemoLogin}
+            style={{ color: '#ffffff', fontSize: '0.85rem', border: 'none', background: '#059669', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            🧪 Demo Mode Auth
+          </button>
+          <a
+            href="http://localhost:8080/oauth2/authorization/google"
+            style={{ color: '#ffffff', fontSize: '0.85rem', textDecoration: 'none', background: '#2563eb', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 'bold' }}
+          >
+            🔑 Log in with Google
+          </a>
           <a
             href="/swagger-ui.html"
             target="_blank"
             rel="noreferrer"
-            style={{ color: '#38bdf8', fontSize: '0.9rem', textDecoration: 'none', background: '#1e293b', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #334155' }}
+            style={{ color: '#38bdf8', fontSize: '0.85rem', textDecoration: 'none', background: '#1e293b', padding: '0.5rem 0.9rem', borderRadius: '8px', border: '1px solid #334155' }}
           >
-            📄 Swagger API Docs
-          </a>
-          <a
-            href="http://localhost:8080/oauth2/authorization/google"
-            style={{ color: '#ffffff', fontSize: '0.9rem', textDecoration: 'none', background: '#2563eb', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 'bold' }}
-          >
-            🔑 Log in with Google
+            📄 Swagger Docs
           </a>
         </div>
       </header>
@@ -80,7 +112,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across all your subscribed channels (e.g. <i>"Find Python coding tutorials under 20 mins from my subscriptions"</i>)
+          Search across all your subscribed channels (e.g. <i>"Find React tutorials under 15 mins from my coding subscriptions"</i>)
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -193,7 +225,7 @@ export default function App() {
 
             {/* Content List */}
             {channelContent.length === 0 ? (
-              <p style={{ color: '#71717a' }}>No {activeTab} indexed yet. Click "Log in with Google" to trigger live sync.</p>
+              <p style={{ color: '#71717a' }}>No {activeTab} indexed yet for this channel.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
                 {channelContent.map((item, idx) => (
@@ -203,7 +235,7 @@ export default function App() {
                     style={{ background: '#09090b', padding: '1rem', borderRadius: '8px', border: '1px solid #27272a', cursor: 'pointer' }}
                   >
                     <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title}</h5>
-                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play in App</p>
+                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play Video</p>
                   </div>
                 ))}
               </div>
