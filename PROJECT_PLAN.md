@@ -171,14 +171,14 @@ To sync this project with GitHub using Git CLI or GitHub MCP:
 
 1. **Create GitHub Repository**:
    - Go to [GitHub New Repository](https://github.com/new).
-   - Name: `youtube-subscriptions-app`
+   - Name: `utubehub`
    - Visibility: Public or Private.
    - Do NOT initialize with README (we will push our local repo).
 
 2. **Connect Local Repo to Remote**:
    ```bash
    git init
-   git remote add origin https://github.com/<your-username>/youtube-subscriptions-app.git
+   git remote add origin https://github.com/<your-username>/utubehub.git
    git branch -M main
    git push -u origin main
    ```
