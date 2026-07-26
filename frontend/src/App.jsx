@@ -112,7 +112,7 @@ export default function App() {
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across all your subscribed channels (e.g. <i>"Find React tutorials under 15 mins from my coding subscriptions"</i>)
+          Search across your own videos & all subscribed channels (e.g. <i>"Find React tutorials under 15 mins"</i>)
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -168,10 +168,10 @@ export default function App() {
       )}
 
       {/* Main Explorer Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '320px 1fr' : '1fr', gap: '2rem' }}>
-        {/* Subscription Channels Column */}
+      <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
+        {/* Subscribed & Own Channels Column */}
         <div>
-          <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.4rem' }}>Subscribed Channels</h2>
+          <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.4rem' }}>Your Library & Subscriptions</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {subscriptions.map((sub) => (
               <div
@@ -181,14 +181,20 @@ export default function App() {
                   background: selectedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
                   padding: '1rem',
                   borderRadius: '10px',
-                  border: '1px solid #27272a',
+                  border: sub.isMine ? '1px solid #059669' : '1px solid #27272a',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
                 }}
               >
+                {sub.isMine && (
+                  <span style={{ position: 'absolute', top: '10px', right: '10px', background: '#059669', color: '#fff', fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>
+                    YOUR ACCOUNT
+                  </span>
+                )}
                 <h4 style={{ margin: '0 0 0.4rem 0', color: '#ffffff' }}>{sub.title}</h4>
                 <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
-                  {(sub.subscriberCount / 1000000).toFixed(1)}M subscribers • {sub.videoCount} videos
+                  {sub.videoCount || 0} videos • {(sub.subscriberCount || 0) > 1000000 ? ((sub.subscriberCount / 1000000).toFixed(1) + 'M subscribers') : (sub.subscriberCount + ' subscribers')}
                 </p>
               </div>
             ))}

@@ -18,9 +18,8 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class YouTubeService {
@@ -53,9 +52,72 @@ public class YouTubeService {
                 .build();
     }
 
+    public ChannelEntity syncMyUploads(String accessToken) throws Exception {
+        YouTube youtube = createYouTubeClient(accessToken);
+        YouTube.Channels.List request = youtube.channels()
+                .list(List.of("snippet", "statistics", "contentDetails"))
+                .setMine(true);
+
+        ChannelListResponse response = request.execute();
+        List<Channel> items = response.getItems();
+
+        if (items != null && !items.isEmpty()) {
+            Channel myChannel = items.get(0);
+            ChannelSnippet snippet = myChannel.getSnippet();
+            ChannelStatistics stats = myChannel.getStatistics();
+            ChannelContentDetails details = myChannel.getContentDetails();
+
+            String uploadsPlaylistId = (details != null && details.getRelatedPlaylists() != null) 
+                    ? details.getRelatedPlaylists().getUploads() : null;
+
+            Long subscriberCount = (stats != null && stats.getSubscriberCount() != null) 
+                    ? stats.getSubscriberCount().longValue() : 0L;
+
+            Long videoCount = (stats != null && stats.getVideoCount() != null) 
+                    ? stats.getVideoCount().longValue() : 0L;
+
+            String thumbnailUrl = null;
+            if (snippet != null && snippet.getThumbnails() != null) {
+                if (snippet.getThumbnails().getHigh() != null) {
+                    thumbnailUrl = snippet.getThumbnails().getHigh().getUrl();
+                } else if (snippet.getThumbnails().getDefault() != null) {
+                    thumbnailUrl = snippet.getThumbnails().getDefault().getUrl();
+                }
+            }
+
+            ChannelEntity entity = ChannelEntity.builder()
+                    .channelId(myChannel.getId())
+                    .title("Your Videos (" + (snippet != null ? snippet.getTitle() : "My Channel") + ")")
+                    .description(snippet != null ? snippet.getDescription() : "Videos uploaded by your account")
+                    .thumbnailUrl(thumbnailUrl)
+                    .subscriberCount(subscriberCount)
+                    .videoCount(videoCount)
+                    .uploadsPlaylistId(uploadsPlaylistId)
+                    .isMine(true)
+                    .lastSyncedAt(LocalDateTime.now())
+                    .build();
+
+            ChannelEntity saved = channelRepository.save(entity);
+            syncChannelContent(accessToken, myChannel.getId());
+            return saved;
+        }
+        return null;
+    }
+
+    public Optional<ChannelEntity> getMyChannel() {
+        return channelRepository.findByIsMineTrue();
+    }
+
     public List<ChannelEntity> syncUserSubscriptions(String accessToken) throws Exception {
         YouTube youtube = createYouTubeClient(accessToken);
         List<String> channelIds = new ArrayList<>();
+
+        // Sync own uploads channel first
+        try {
+            syncMyUploads(accessToken);
+        } catch (Exception e) {
+            System.err.println("Notice: Could not sync own channel uploads: " + e.getMessage());
+        }
 
         String pageToken = null;
         do {
@@ -126,6 +188,7 @@ public class YouTubeService {
                             .subscriberCount(subscriberCount)
                             .videoCount(videoCount)
                             .uploadsPlaylistId(uploadsPlaylistId)
+                            .isMine(false)
                             .lastSyncedAt(LocalDateTime.now())
                             .build();
 

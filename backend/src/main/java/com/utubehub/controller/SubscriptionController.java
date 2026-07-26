@@ -24,7 +24,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/subscriptions")
-@Tag(name = "YouTube Subscriptions", description = "Endpoints for retrieving subscriptions, channel videos, shorts, playlists, and syncing with YouTube API")
+@Tag(name = "YouTube Subscriptions", description = "Endpoints for retrieving subscriptions, user own videos, channel videos, shorts, playlists, and syncing with YouTube API")
 public class SubscriptionController {
 
     private final YouTubeService youTubeService;
@@ -63,7 +63,7 @@ public class SubscriptionController {
     }
 
     @GetMapping
-    @Operation(summary = "List All Subscriptions", description = "Fetches user subscribed YouTube channels. Automatically triggers live YouTube API sync when authenticated.")
+    @Operation(summary = "List All Subscriptions & Own Channel", description = "Fetches user's own channel and subscribed YouTube channels. Automatically triggers live YouTube API sync when authenticated.")
     public ResponseEntity<List<ChannelEntity>> getSubscriptions(
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
@@ -90,7 +90,7 @@ public class SubscriptionController {
     }
 
     @PostMapping("/sync")
-    @Operation(summary = "Sync Subscriptions with YouTube API", description = "Fetches live subscriptions from YouTube Data API v3 using user OAuth access token and updates local database.")
+    @Operation(summary = "Sync Subscriptions & Own Videos", description = "Fetches live subscriptions and your own uploaded videos from YouTube Data API v3 using OAuth access token.")
     public ResponseEntity<?> syncSubscriptions(
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
@@ -106,15 +106,15 @@ public class SubscriptionController {
         if (accessToken.startsWith("demo-")) {
             seedDemoData();
             return ResponseEntity.ok(Map.of(
-                    "message", "Demo mode sync completed! Seeded channels, videos, shorts, and playlists.",
-                    "channelsSynced", 2
+                    "message", "Demo mode sync completed! Seeded own channel, subscriptions, videos, shorts, and playlists.",
+                    "channelsSynced", 3
             ));
         }
 
         try {
             List<ChannelEntity> synced = youTubeService.syncUserSubscriptions(accessToken);
             return ResponseEntity.ok(Map.of(
-                    "message", "Successfully synced " + synced.size() + " subscriptions from YouTube API.",
+                    "message", "Successfully synced " + synced.size() + " subscriptions and your own channel from YouTube API.",
                     "channelsSynced", synced.size()
             ));
         } catch (Exception e) {
@@ -126,7 +126,7 @@ public class SubscriptionController {
     }
 
     @GetMapping("/{channelId}/videos")
-    @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific subscribed channel, with an optional filter for Shorts.")
+    @Operation(summary = "Get Channel Videos & Shorts", description = "Retrieves videos for a specific channel (including your own uploads), with an optional filter for Shorts.")
     public ResponseEntity<List<VideoEntity>> getChannelVideos(
             @PathVariable String channelId,
             @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
@@ -178,13 +178,24 @@ public class SubscriptionController {
     }
 
     private void seedDemoData() {
-        if (!channelRepository.existsById("UC_x5XG1OV2P6uZZ5FSM9Ttw")) {
+        if (!channelRepository.existsById("UC_MY_OWN_CHANNEL_DEMO")) {
+            ChannelEntity myOwnChannel = ChannelEntity.builder()
+                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                    .title("👤 Your Videos (My Channel)")
+                    .description("Videos, Shorts, and Playlists created and uploaded by your YouTube account.")
+                    .subscriberCount(1500L)
+                    .videoCount(8L)
+                    .isMine(true)
+                    .lastSyncedAt(LocalDateTime.now())
+                    .build();
+
             ChannelEntity devChannel = ChannelEntity.builder()
                     .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
                     .title("Google Developers")
                     .description("Official Google Developers channel featuring tech talks, tutorials, and keynotes.")
                     .subscriberCount(2450000L)
                     .videoCount(5230L)
+                    .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
@@ -194,12 +205,33 @@ public class SubscriptionController {
                     .description("High-intensity code tutorials and tech news to help you build apps faster.")
                     .subscriberCount(3100000L)
                     .videoCount(650L)
+                    .isMine(false)
                     .lastSyncedAt(LocalDateTime.now())
                     .build();
 
-            channelRepository.saveAll(List.of(devChannel, fireshipChannel));
+            channelRepository.saveAll(List.of(myOwnChannel, devChannel, fireshipChannel));
 
             videoRepository.saveAll(List.of(
+                VideoEntity.builder()
+                    .videoId("l83R15D3910")
+                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                    .title("My First Project Demo Video")
+                    .description("Welcome to my YouTube channel!")
+                    .durationSeconds(420)
+                    .isShort(false)
+                    .publishedAt(LocalDateTime.now().minusDays(1))
+                    .viewCount(1200L)
+                    .build(),
+                VideoEntity.builder()
+                    .videoId("M576WGiDBdQ")
+                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                    .title("My Quick Coding Short")
+                    .description("Building apps fast #shorts")
+                    .durationSeconds(45)
+                    .isShort(true)
+                    .publishedAt(LocalDateTime.now().minusDays(3))
+                    .viewCount(3400L)
+                    .build(),
                 VideoEntity.builder()
                     .videoId("l83R15D3910")
                     .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
@@ -209,26 +241,16 @@ public class SubscriptionController {
                     .isShort(false)
                     .publishedAt(LocalDateTime.now().minusDays(2))
                     .viewCount(1500000L)
-                    .build(),
-                VideoEntity.builder()
-                    .videoId("M576WGiDBdQ")
-                    .channelId("UCsBjURrP6M6nO6jC11p9xGA")
-                    .title("React 19 in 100 Seconds")
-                    .description("A fast breakdown of React 19 features.")
-                    .durationSeconds(130)
-                    .isShort(true)
-                    .publishedAt(LocalDateTime.now().minusDays(5))
-                    .viewCount(850000L)
                     .build()
             ));
 
             playlistRepository.save(
                 PlaylistEntity.builder()
-                    .playlistId("PLOU2XLYxmsIKC8eODk_LrhLnlpe25880-")
-                    .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
-                    .title("Spring Boot & Cloud Native Java")
-                    .description("Tutorials for building modern Java applications.")
-                    .itemCount(24)
+                    .playlistId("PL_MY_OWN_PLAYLIST_1")
+                    .channelId("UC_MY_OWN_CHANNEL_DEMO")
+                    .title("My Uploaded Tutorials & Projects")
+                    .description("Collection of videos created by me.")
+                    .itemCount(5)
                     .build()
             );
         }

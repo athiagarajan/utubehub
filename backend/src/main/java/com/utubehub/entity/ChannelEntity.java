@@ -39,6 +39,9 @@ public class ChannelEntity {
     @Column(name = "uploads_playlist_id")
     private String uploadsPlaylistId;
 
+    @Column(name = "is_mine")
+    private Boolean isMine;
+
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;
 }
