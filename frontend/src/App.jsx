@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 export default function App() {
   const [healthStatus, setHealthStatus] = useState('Connecting...');
   const [subscriptions, setSubscriptions] = useState([]);
+  const [ownChannel, setOwnChannel] = useState(null);
+  const [mainNavTab, setMainNavTab] = useState('subscribed'); // 'subscribed' | 'uploaded'
   const [selectedChannel, setSelectedChannel] = useState(null);
-  const [activeTab, setActiveTab] = useState('videos'); // 'videos', 'shorts', 'playlists'
+  const [activeTab, setActiveTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
   const [channelContent, setChannelContent] = useState([]);
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
-  const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
     // Check Backend Health Status
@@ -17,34 +18,40 @@ export default function App() {
       .then((data) => setHealthStatus(`Backend Online (${data.service} v${data.version})`))
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
-    // Fetch Subscriptions catalog
+    // Fetch Subscriptions & Own Channel catalog
     fetch('/api/v1/subscriptions')
       .then((res) => res.json())
       .then((data) => {
-        setSubscriptions(data);
-        if (data.length > 0) {
-          selectChannel(data[0]);
+        const mine = data.find((ch) => ch.isMine);
+        const subbed = data.filter((ch) => !ch.isMine);
+
+        setOwnChannel(mine || null);
+        setSubscriptions(subbed);
+
+        if (subbed.length > 0) {
+          selectChannel(subbed[0]);
         }
       })
-      .catch((err) => console.error('Failed to load subscriptions:', err));
+      .catch((err) => console.error('Failed to load channels:', err));
   }, []);
 
   const triggerDemoLogin = () => {
     fetch('/api/v1/auth/demo-login', { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
-        setUserToken(data.accessToken);
-        alert(`Demo Mode Activated! Token generated:\n${data.accessToken}\n\nCopy this token into Swagger UI's Authorize button.`);
-        // Sync demo content
+        alert(`Demo Mode Activated!\nToken: ${data.accessToken}\n\nCopy this token into Swagger UI's Authorize button.`);
         fetch('/api/v1/subscriptions/sync', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${data.accessToken}` }
         })
         .then(() => fetch('/api/v1/subscriptions'))
         .then((res) => res.json())
-        .then((subs) => {
-          setSubscriptions(subs);
-          if (subs.length > 0) selectChannel(subs[0]);
+        .then((channels) => {
+          const mine = channels.find((ch) => ch.isMine);
+          const subbed = channels.filter((ch) => !ch.isMine);
+          setOwnChannel(mine || null);
+          setSubscriptions(subbed);
+          if (subbed.length > 0) selectChannel(subbed[0]);
         });
       });
   };
@@ -69,10 +76,24 @@ export default function App() {
       .catch((err) => console.error(`Failed to load ${tab}:`, err));
   };
 
+  const switchToUploadedTab = () => {
+    setMainNavTab('uploaded');
+    if (ownChannel) {
+      selectChannel(ownChannel);
+    }
+  };
+
+  const switchToSubscribedTab = () => {
+    setMainNavTab('subscribed');
+    if (subscriptions.length > 0) {
+      selectChannel(subscriptions[0]);
+    }
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
       {/* Header Bar */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '1rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#ff0000', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span>▶</span> UTubeHub
@@ -106,13 +127,53 @@ export default function App() {
         </div>
       </header>
 
+      {/* Primary Navigation Tabs */}
+      <nav style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+        <button
+          onClick={switchToSubscribedTab}
+          style={{
+            flex: 1,
+            padding: '0.9rem 1.5rem',
+            fontSize: '1.05rem',
+            fontWeight: 'bold',
+            borderRadius: '10px',
+            border: 'none',
+            background: mainNavTab === 'subscribed' ? '#cc0000' : '#18181b',
+            color: '#ffffff',
+            cursor: 'pointer',
+            boxShadow: mainNavTab === 'subscribed' ? '0 4px 12px rgba(204, 0, 0, 0.4)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📺 Subscribed Channels ({subscriptions.length})
+        </button>
+        <button
+          onClick={switchToUploadedTab}
+          style={{
+            flex: 1,
+            padding: '0.9rem 1.5rem',
+            fontSize: '1.05rem',
+            fontWeight: 'bold',
+            borderRadius: '10px',
+            border: 'none',
+            background: mainNavTab === 'uploaded' ? '#059669' : '#18181b',
+            color: '#ffffff',
+            cursor: 'pointer',
+            boxShadow: mainNavTab === 'uploaded' ? '0 4px 12px rgba(5, 150, 105, 0.4)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          👤 Videos Uploaded {ownChannel ? `(${ownChannel.title})` : ''}
+        </button>
+      </nav>
+
       {/* AI Prompt Search Input */}
       <section style={{ marginBottom: '2rem', background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
         <h3 style={{ marginTop: 0, color: '#f4f4f5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           ✨ AI Prompt-Based Search Engine
         </h3>
         <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Search across your own videos & all subscribed channels (e.g. <i>"Find React tutorials under 15 mins"</i>)
+          Search across {mainNavTab === 'uploaded' ? 'your uploaded videos' : 'all subscribed channels'} (e.g. <i>"Find React tutorials under 15 mins"</i>)
         </p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
@@ -167,57 +228,114 @@ export default function App() {
         </section>
       )}
 
-      {/* Main Explorer Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
-        {/* Subscribed & Own Channels Column */}
-        <div>
-          <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.4rem' }}>Your Library & Subscriptions</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {subscriptions.map((sub) => (
-              <div
-                key={sub.channelId}
-                onClick={() => selectChannel(sub)}
-                style={{
-                  background: selectedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
-                  padding: '1rem',
-                  borderRadius: '10px',
-                  border: sub.isMine ? '1px solid #059669' : '1px solid #27272a',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  position: 'relative'
-                }}
-              >
-                {sub.isMine && (
-                  <span style={{ position: 'absolute', top: '10px', right: '10px', background: '#059669', color: '#fff', fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>
-                    YOUR ACCOUNT
-                  </span>
-                )}
-                <h4 style={{ margin: '0 0 0.4rem 0', color: '#ffffff' }}>{sub.title}</h4>
-                <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
-                  {sub.videoCount || 0} videos • {(sub.subscriberCount || 0) > 1000000 ? ((sub.subscriberCount / 1000000).toFixed(1) + 'M subscribers') : (sub.subscriberCount + ' subscribers')}
-                </p>
-              </div>
-            ))}
+      {/* PAGE VIEW 1: Subscribed Channels Page */}
+      {mainNavTab === 'subscribed' && (
+        <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
+          {/* Channel Selector Sidebar */}
+          <div>
+            <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.3rem' }}>Subscribed Channels</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {subscriptions.map((sub) => (
+                <div
+                  key={sub.channelId}
+                  onClick={() => selectChannel(sub)}
+                  style={{
+                    background: selectedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
+                    padding: '1rem',
+                    borderRadius: '10px',
+                    border: '1px solid #27272a',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <h4 style={{ margin: '0 0 0.4rem 0', color: '#ffffff' }}>{sub.title}</h4>
+                  <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
+                    {sub.videoCount || 0} videos • {(sub.subscriberCount || 0) > 1000000 ? ((sub.subscriberCount / 1000000).toFixed(1) + 'M subscribers') : (sub.subscriberCount + ' subscribers')}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Selected Subscribed Channel Inspector */}
+          {selectedChannel && !selectedChannel.isMine && (
+            <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
+              <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedChannel.title}</h2>
+              <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedChannel.description}</p>
+
+              {/* Sub-Tabs for Videos, Shorts, Playlists */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
+                {['videos', 'shorts', 'playlists'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => loadChannelContent(selectedChannel.channelId, tab)}
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: activeTab === tab ? '#cc0000' : '#27272a',
+                      color: '#fff',
+                      fontWeight: 'bold',
+                      textTransform: 'capitalize',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Grid */}
+              {channelContent.length === 0 ? (
+                <p style={{ color: '#71717a' }}>No {activeTab} indexed yet for this channel.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+                  {channelContent.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => item.videoId && setActiveVideoId(item.videoId)}
+                      style={{ background: '#09090b', padding: '1rem', borderRadius: '8px', border: '1px solid #27272a', cursor: 'pointer' }}
+                    >
+                      <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title}</h5>
+                      <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play Video</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Selected Channel Detailed Content Inspector */}
-        {selectedChannel && (
-          <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
-            <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedChannel.title}</h2>
-            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedChannel.description}</p>
+      {/* PAGE VIEW 2: Videos Uploaded Page (User Own Account) */}
+      {mainNavTab === 'uploaded' && (
+        <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #059669' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h2 style={{ margin: '0 0 0.4rem 0', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                👤 {ownChannel ? ownChannel.title : 'Videos Uploaded by Your Account'}
+              </h2>
+              <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.9rem' }}>
+                {ownChannel ? ownChannel.description : 'Your uploaded videos, Shorts, and playlists'}
+              </p>
+            </div>
+            <span style={{ background: '#059669', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}>
+              YOUR ACCOUNT
+            </span>
+          </div>
 
-            {/* Navigation Tabs */}
+          {/* Sub-Tabs for Videos, Shorts, Playlists */}
+          {ownChannel && (
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
               {['videos', 'shorts', 'playlists'].map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => loadChannelContent(selectedChannel.channelId, tab)}
+                  onClick={() => loadChannelContent(ownChannel.channelId, tab)}
                   style={{
                     padding: '0.5rem 1.25rem',
                     borderRadius: '6px',
                     border: 'none',
-                    background: activeTab === tab ? '#cc0000' : '#27272a',
+                    background: activeTab === tab ? '#059669' : '#27272a',
                     color: '#fff',
                     fontWeight: 'bold',
                     textTransform: 'capitalize',
@@ -228,27 +346,27 @@ export default function App() {
                 </button>
               ))}
             </div>
+          )}
 
-            {/* Content List */}
-            {channelContent.length === 0 ? (
-              <p style={{ color: '#71717a' }}>No {activeTab} indexed yet for this channel.</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-                {channelContent.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => item.videoId && setActiveVideoId(item.videoId)}
-                    style={{ background: '#09090b', padding: '1rem', borderRadius: '8px', border: '1px solid #27272a', cursor: 'pointer' }}
-                  >
-                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title}</h5>
-                    <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play Video</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          {/* Content Grid */}
+          {channelContent.length === 0 ? (
+            <p style={{ color: '#71717a' }}>No {activeTab} found for your account. Log in with Google to sync your uploads.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
+              {channelContent.map((item, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => item.videoId && setActiveVideoId(item.videoId)}
+                  style={{ background: '#09090b', padding: '1.2rem', borderRadius: '10px', border: '1px solid #27272a', cursor: 'pointer' }}
+                >
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1rem' }}>{item.title}</h4>
+                  <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>▶ Play Video</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
