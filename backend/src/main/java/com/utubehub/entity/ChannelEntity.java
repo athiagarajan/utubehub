@@ -24,7 +24,7 @@ public class ChannelEntity {
     @Column(nullable = false)
     private String title;
 
-    @Column(length = 2000)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "thumbnail_url", length = 1024)

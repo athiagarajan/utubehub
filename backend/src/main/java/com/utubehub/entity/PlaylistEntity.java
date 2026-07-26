@@ -25,7 +25,7 @@ public class PlaylistEntity {
     @Column(nullable = false, length = 512)
     private String title;
 
-    @Column(length = 2000)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "item_count")
