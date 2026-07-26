@@ -5,9 +5,15 @@ export default function App() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [ownChannel, setOwnChannel] = useState(null);
   const [mainNavTab, setMainNavTab] = useState('subscribed'); // 'subscribed' | 'uploaded'
-  const [selectedChannel, setSelectedChannel] = useState(null);
-  const [activeTab, setActiveTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
-  const [channelContent, setChannelContent] = useState([]);
+  
+  // Content states
+  const [selectedSubscribedChannel, setSelectedSubscribedChannel] = useState(null);
+  const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
+  const [subscribedContent, setSubscribedContent] = useState([]);
+
+  const [uploadedTab, setUploadedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
+  const [uploadedContent, setUploadedContent] = useState([]);
+
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
 
@@ -18,8 +24,12 @@ export default function App() {
       .then((data) => setHealthStatus(`Backend Online (${data.service} v${data.version})`))
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
-    // Fetch Subscriptions & Own Channel catalog
-    fetch('/api/v1/subscriptions')
+    // Fetch Channels catalog
+    loadAllChannels();
+  }, []);
+
+  const loadAllChannels = () => {
+    return fetch('/api/v1/subscriptions')
       .then((res) => res.json())
       .then((data) => {
         const mine = data.find((ch) => ch.isMine);
@@ -28,12 +38,18 @@ export default function App() {
         setOwnChannel(mine || null);
         setSubscriptions(subbed);
 
-        if (subbed.length > 0) {
-          selectChannel(subbed[0]);
+        if (subbed.length > 0 && !selectedSubscribedChannel) {
+          selectSubscribedChannel(subbed[0], 'videos');
         }
+
+        if (mine) {
+          loadUploadedContent(mine.channelId, 'videos');
+        }
+
+        return { mine, subbed };
       })
       .catch((err) => console.error('Failed to load channels:', err));
-  }, []);
+  };
 
   const triggerDemoLogin = () => {
     fetch('/api/v1/auth/demo-login', { method: 'POST' })
@@ -44,25 +60,30 @@ export default function App() {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${data.accessToken}` }
         })
-        .then(() => fetch('/api/v1/subscriptions'))
-        .then((res) => res.json())
-        .then((channels) => {
-          const mine = channels.find((ch) => ch.isMine);
-          const subbed = channels.filter((ch) => !ch.isMine);
-          setOwnChannel(mine || null);
-          setSubscriptions(subbed);
-          if (subbed.length > 0) selectChannel(subbed[0]);
-        });
+        .then(() => loadAllChannels());
       });
   };
 
-  const selectChannel = (channel) => {
-    setSelectedChannel(channel);
-    loadChannelContent(channel.channelId, 'videos');
+  const selectSubscribedChannel = (channel, tab = 'videos') => {
+    setSelectedSubscribedChannel(channel);
+    setSubscribedTab(tab);
+
+    let endpoint = `/api/v1/subscriptions/${channel.channelId}/videos`;
+    if (tab === 'shorts') {
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?shortsOnly=true`;
+    } else if (tab === 'playlists') {
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/playlists`;
+    }
+
+    fetch(endpoint)
+      .then((res) => res.json())
+      .then((data) => setSubscribedContent(data))
+      .catch((err) => console.error(`Failed to load subscribed ${tab}:`, err));
   };
 
-  const loadChannelContent = (channelId, tab) => {
-    setActiveTab(tab);
+  const loadUploadedContent = (channelId, tab = 'videos') => {
+    setUploadedTab(tab);
+
     let endpoint = `/api/v1/subscriptions/${channelId}/videos`;
     if (tab === 'shorts') {
       endpoint = `/api/v1/subscriptions/${channelId}/videos?shortsOnly=true`;
@@ -72,21 +93,25 @@ export default function App() {
 
     fetch(endpoint)
       .then((res) => res.json())
-      .then((data) => setChannelContent(data))
-      .catch((err) => console.error(`Failed to load ${tab}:`, err));
+      .then((data) => setUploadedContent(data))
+      .catch((err) => console.error(`Failed to load uploaded ${tab}:`, err));
   };
 
   const switchToUploadedTab = () => {
     setMainNavTab('uploaded');
-    if (ownChannel) {
-      selectChannel(ownChannel);
-    }
+    loadAllChannels().then(({ mine }) => {
+      if (mine) {
+        loadUploadedContent(mine.channelId, uploadedTab);
+      }
+    });
   };
 
   const switchToSubscribedTab = () => {
     setMainNavTab('subscribed');
-    if (subscriptions.length > 0) {
-      selectChannel(subscriptions[0]);
+    if (selectedSubscribedChannel) {
+      selectSubscribedChannel(selectedSubscribedChannel, subscribedTab);
+    } else if (subscriptions.length > 0) {
+      selectSubscribedChannel(subscriptions[0], 'videos');
     }
   };
 
@@ -230,17 +255,17 @@ export default function App() {
 
       {/* PAGE VIEW 1: Subscribed Channels Page */}
       {mainNavTab === 'subscribed' && (
-        <div style={{ display: 'grid', gridTemplateColumns: selectedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
-          {/* Channel Selector Sidebar */}
+        <div style={{ display: 'grid', gridTemplateColumns: selectedSubscribedChannel ? '340px 1fr' : '1fr', gap: '2rem' }}>
+          {/* Subscribed Channels Sidebar */}
           <div>
             <h2 style={{ color: '#f4f4f5', marginBottom: '1rem', fontSize: '1.3rem' }}>Subscribed Channels</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {subscriptions.map((sub) => (
                 <div
                   key={sub.channelId}
-                  onClick={() => selectChannel(sub)}
+                  onClick={() => selectSubscribedChannel(sub, 'videos')}
                   style={{
-                    background: selectedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
+                    background: selectedSubscribedChannel?.channelId === sub.channelId ? '#27272a' : '#18181b',
                     padding: '1rem',
                     borderRadius: '10px',
                     border: '1px solid #27272a',
@@ -257,23 +282,23 @@ export default function App() {
             </div>
           </div>
 
-          {/* Selected Subscribed Channel Inspector */}
-          {selectedChannel && !selectedChannel.isMine && (
+          {/* Selected Subscribed Channel Content Inspector */}
+          {selectedSubscribedChannel && (
             <div style={{ background: '#18181b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #27272a' }}>
-              <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedChannel.title}</h2>
-              <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedChannel.description}</p>
+              <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedSubscribedChannel.title}</h2>
+              <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedSubscribedChannel.description}</p>
 
               {/* Sub-Tabs for Videos, Shorts, Playlists */}
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
                 {['videos', 'shorts', 'playlists'].map((tab) => (
                   <button
                     key={tab}
-                    onClick={() => loadChannelContent(selectedChannel.channelId, tab)}
+                    onClick={() => selectSubscribedChannel(selectedSubscribedChannel, tab)}
                     style={{
                       padding: '0.5rem 1.25rem',
                       borderRadius: '6px',
                       border: 'none',
-                      background: activeTab === tab ? '#cc0000' : '#27272a',
+                      background: subscribedTab === tab ? '#cc0000' : '#27272a',
                       color: '#fff',
                       fontWeight: 'bold',
                       textTransform: 'capitalize',
@@ -285,12 +310,12 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Content Grid */}
-              {channelContent.length === 0 ? (
-                <p style={{ color: '#71717a' }}>No {activeTab} indexed yet for this channel.</p>
+              {/* Subscribed Content Grid */}
+              {subscribedContent.length === 0 ? (
+                <p style={{ color: '#71717a' }}>No {subscribedTab} indexed yet for this channel.</p>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-                  {channelContent.map((item, idx) => (
+                  {subscribedContent.map((item, idx) => (
                     <div
                       key={idx}
                       onClick={() => item.videoId && setActiveVideoId(item.videoId)}
@@ -330,12 +355,12 @@ export default function App() {
               {['videos', 'shorts', 'playlists'].map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => loadChannelContent(ownChannel.channelId, tab)}
+                  onClick={() => loadUploadedContent(ownChannel.channelId, tab)}
                   style={{
                     padding: '0.5rem 1.25rem',
                     borderRadius: '6px',
                     border: 'none',
-                    background: activeTab === tab ? '#059669' : '#27272a',
+                    background: uploadedTab === tab ? '#059669' : '#27272a',
                     color: '#fff',
                     fontWeight: 'bold',
                     textTransform: 'capitalize',
@@ -348,12 +373,12 @@ export default function App() {
             </div>
           )}
 
-          {/* Content Grid */}
-          {channelContent.length === 0 ? (
-            <p style={{ color: '#71717a' }}>No {activeTab} found for your account. Log in with Google to sync your uploads.</p>
+          {/* Uploaded Content Grid */}
+          {uploadedContent.length === 0 ? (
+            <p style={{ color: '#71717a' }}>No {uploadedTab} found for your account. Log in with Google to sync your uploads.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem' }}>
-              {channelContent.map((item, idx) => (
+              {uploadedContent.map((item, idx) => (
                 <div
                   key={idx}
                   onClick={() => item.videoId && setActiveVideoId(item.videoId)}
