@@ -12,6 +12,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -27,25 +31,54 @@ public class SubscriptionController {
     private final ChannelRepository channelRepository;
     private final VideoRepository videoRepository;
     private final PlaylistRepository playlistRepository;
+    private final OAuth2AuthorizedClientService authorizedClientService;
 
     @Autowired
     public SubscriptionController(
             YouTubeService youTubeService,
             ChannelRepository channelRepository,
             VideoRepository videoRepository,
-            PlaylistRepository playlistRepository) {
+            PlaylistRepository playlistRepository,
+            OAuth2AuthorizedClientService authorizedClientService) {
         this.youTubeService = youTubeService;
         this.channelRepository = channelRepository;
         this.videoRepository = videoRepository;
         this.playlistRepository = playlistRepository;
+        this.authorizedClientService = authorizedClientService;
     }
 
     @GetMapping
-    @Operation(summary = "List All Subscriptions", description = "Fetches all user subscribed YouTube channels cached in local PostgreSQL database.")
-    public ResponseEntity<List<ChannelEntity>> getSubscriptions() {
-        List<ChannelEntity> channels = youTubeService.getLocalSubscriptions();
-        if (channels.isEmpty()) {
-            // Seed initial demo channels for instant browsing
+    @Operation(summary = "List All Subscriptions", description = "Fetches user subscribed YouTube channels. Automatically triggers live YouTube API sync when authenticated.")
+    public ResponseEntity<List<ChannelEntity>> getSubscriptions(
+            @RequestHeader(name = "Authorization", required = false) String authHeader,
+            Authentication authentication) {
+
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        } else if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+            OAuth2AuthorizedClient client = authorizedClientService.loadAuthorizedClient(
+                    oauthToken.getAuthorizedClientRegistrationId(),
+                    oauthToken.getName());
+            if (client != null && client.getAccessToken() != null) {
+                accessToken = client.getAccessToken().getTokenValue();
+            }
+        }
+
+        if (accessToken != null && !accessToken.startsWith("demo-")) {
+            try {
+                List<ChannelEntity> liveChannels = youTubeService.syncUserSubscriptions(accessToken);
+                if (!liveChannels.isEmpty()) {
+                    return ResponseEntity.ok(liveChannels);
+                }
+            } catch (Exception e) {
+                System.err.println("Live sync failed: " + e.getMessage() + ". Returning cached channels.");
+            }
+        }
+
+        List<ChannelEntity> cached = youTubeService.getLocalSubscriptions();
+        if (cached.isEmpty()) {
+            // Seed initial demo channels if database is unseeded
             ChannelEntity devChannel = ChannelEntity.builder()
                     .channelId("UC_x5XG1OV2P6uZZ5FSM9Ttw")
                     .title("Google Developers")
@@ -66,7 +99,6 @@ public class SubscriptionController {
 
             channelRepository.saveAll(List.of(devChannel, fireshipChannel));
 
-            // Seed sample videos for playability
             videoRepository.saveAll(List.of(
                 VideoEntity.builder()
                     .videoId("l83R15D3910")
@@ -90,7 +122,6 @@ public class SubscriptionController {
                     .build()
             ));
 
-            // Seed sample playlists
             playlistRepository.save(
                 PlaylistEntity.builder()
                     .playlistId("PLOU2XLYxmsIKC8eODk_LrhLnlpe25880-")
@@ -103,7 +134,7 @@ public class SubscriptionController {
 
             return ResponseEntity.ok(channelRepository.findAll());
         }
-        return ResponseEntity.ok(channels);
+        return ResponseEntity.ok(cached);
     }
 
     @PostMapping("/sync")
@@ -119,10 +150,8 @@ public class SubscriptionController {
 
         String accessToken = authHeader.substring(7);
         if (accessToken.startsWith("demo-")) {
-            // Seed demo channels & content for unblocked testing
-            getSubscriptions();
             return ResponseEntity.ok(Map.of(
-                    "message", "Demo mode sync completed! Seeded 2 channels, videos, shorts, and playlists.",
+                    "message", "Demo mode sync completed! Seeded channels, videos, shorts, and playlists.",
                     "channelsSynced", 2
             ));
         }
@@ -147,14 +176,12 @@ public class SubscriptionController {
             @PathVariable String channelId,
             @Parameter(description = "Set to true to isolate YouTube Shorts (<60s format)")
             @RequestParam(required = false, defaultValue = "false") Boolean shortsOnly) {
-        getSubscriptions(); // Ensure DB seeded if empty
         return ResponseEntity.ok(youTubeService.getChannelVideos(channelId, shortsOnly));
     }
 
     @GetMapping("/{channelId}/playlists")
     @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
     public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(@PathVariable String channelId) {
-        getSubscriptions(); // Ensure DB seeded if empty
         return ResponseEntity.ok(youTubeService.getChannelPlaylists(channelId));
     }
 }
