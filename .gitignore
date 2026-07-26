@@ -1,0 +1,29 @@
+# Gradle & Java
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
