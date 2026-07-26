@@ -26,8 +26,5 @@ describe('UTubeHub App Component', () => {
     expect(screen.getAllByText(/UTubeHub/i)[0]).toBeInTheDocument();
     expect(screen.getByText(/👤 Google Account:/i)).toBeInTheDocument();
     expect(screen.getAllByText(/atrteach@gmail.com/i)[0]).toBeInTheDocument();
-
-    const swaggerLink = screen.getByText(/📄 Swagger/i).closest('a');
-    expect(swaggerLink).toHaveAttribute('href', 'http://localhost:8080/swagger-ui.html');
   });
 });

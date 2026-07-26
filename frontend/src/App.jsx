@@ -13,15 +13,15 @@ export default function App() {
   
   // Subscribed channels state
   const [selectedSubscribedChannel, setSelectedSubscribedChannel] = useState(null);
-  const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists'
+  const [subscribedTab, setSubscribedTab] = useState('videos'); // 'videos' | 'shorts' | 'playlists' | 'live' | 'podcasts' | 'posts'
   const [subscribedContent, setSubscribedContent] = useState([]);
-  const [subscribedCounts, setSubscribedCounts] = useState({ videos: 0, shorts: 0, playlists: 0 });
+  const [subscribedCounts, setSubscribedCounts] = useState({ videos: 0, shorts: 0, playlists: 0, live: 0, podcasts: 0, posts: 0 });
   const [isSubscribedSyncing, setIsSubscribedSyncing] = useState(false);
 
   // Your Contents state
-  const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts'
+  const [yourContentTab, setYourContentTab] = useState('videos'); // 'videos' | 'playlists' | 'live' | 'posts' | 'courses' | 'clips'
   const [yourContentData, setYourContentData] = useState([]);
-  const [yourContentCounts, setYourContentCounts] = useState({ videos: 0, playlists: 0, live: 0, posts: 0 });
+  const [yourContentCounts, setYourContentCounts] = useState({ videos: 0, playlists: 0, live: 0, posts: 0, courses: 0, clips: 0 });
   const [isYourContentLoading, setIsYourContentLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -91,7 +91,7 @@ export default function App() {
         } else {
           setSelectedSubscribedChannel(null);
           setSubscribedContent([]);
-          setSubscribedCounts({ videos: 0, shorts: 0, playlists: 0 });
+          setSubscribedCounts({ videos: 0, shorts: 0, playlists: 0, live: 0, podcasts: 0, posts: 0 });
         }
 
         fetchAllYourContentCounts(email);
@@ -106,13 +106,19 @@ export default function App() {
     Promise.all([
       fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}`).then((r) => r.json()),
       fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}&shortsOnly=true`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/playlists?userId=${encEmail}`).then((r) => r.json())
+      fetch(`/api/v1/subscriptions/${channelId}/playlists?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/subscriptions/${channelId}/live?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/subscriptions/${channelId}/podcasts?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/subscriptions/${channelId}/posts?userId=${encEmail}`).then((r) => r.json())
     ])
-    .then(([vids, shorts, lists]) => {
+    .then(([vids, shorts, lists, live, podcasts, posts]) => {
       setSubscribedCounts({
         videos: Array.isArray(vids) ? vids.length : 0,
         shorts: Array.isArray(shorts) ? shorts.length : 0,
-        playlists: Array.isArray(lists) ? lists.length : 0
+        playlists: Array.isArray(lists) ? lists.length : 0,
+        live: Array.isArray(live) ? live.length : 0,
+        podcasts: Array.isArray(podcasts) ? podcasts.length : 0,
+        posts: Array.isArray(posts) ? posts.length : 0
       });
     })
     .catch((err) => console.error('Error fetching subscribed counts:', err));
@@ -124,14 +130,18 @@ export default function App() {
       fetch(`/api/v1/user/videos?userId=${encEmail}`).then((r) => r.json()),
       fetch(`/api/v1/user/playlists?userId=${encEmail}`).then((r) => r.json()),
       fetch(`/api/v1/user/live?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/posts?userId=${encEmail}`).then((r) => r.json())
+      fetch(`/api/v1/user/posts?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/user/courses?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`/api/v1/user/clips?userId=${encEmail}`).then((r) => r.json())
     ])
-    .then(([vids, lists, live, posts]) => {
+    .then(([vids, lists, live, posts, courses, clips]) => {
       setYourContentCounts({
         videos: Array.isArray(vids) ? vids.length : 0,
         playlists: Array.isArray(lists) ? lists.length : 0,
         live: Array.isArray(live) ? live.length : 0,
-        posts: Array.isArray(posts) ? posts.length : 0
+        posts: Array.isArray(posts) ? posts.length : 0,
+        courses: Array.isArray(courses) ? courses.length : 0,
+        clips: Array.isArray(clips) ? clips.length : 0
       });
     })
     .catch((err) => console.error('Error fetching user content counts:', err));
@@ -212,6 +222,12 @@ export default function App() {
       endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}&shortsOnly=true`;
     } else if (tab === 'playlists') {
       endpoint = `/api/v1/subscriptions/${channel.channelId}/playlists?userId=${encodeURIComponent(email)}`;
+    } else if (tab === 'live') {
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/live?userId=${encodeURIComponent(email)}`;
+    } else if (tab === 'podcasts') {
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/podcasts?userId=${encodeURIComponent(email)}`;
+    } else if (tab === 'posts') {
+      endpoint = `/api/v1/subscriptions/${channel.channelId}/posts?userId=${encodeURIComponent(email)}`;
     }
 
     fetch(endpoint)
@@ -475,12 +491,12 @@ export default function App() {
               <h2 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>{selectedSubscribedChannel.title}</h2>
               <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{selectedSubscribedChannel.description}</p>
 
-              {/* Sub-Tabs for Videos, Shorts, Playlists with Item Counts */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
+              {/* 6 Sub-Tabs: Videos, Shorts, Playlists, Live, Podcasts, Posts with Item Counts */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
                 <button
                   onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'videos', activeUserEmail)}
                   style={{
-                    padding: '0.5rem 1.25rem',
+                    padding: '0.5rem 1rem',
                     borderRadius: '6px',
                     border: 'none',
                     background: subscribedTab === 'videos' ? '#cc0000' : '#27272a',
@@ -489,12 +505,12 @@ export default function App() {
                     cursor: 'pointer'
                   }}
                 >
-                  Videos ({subscribedCounts.videos})
+                  📹 Videos ({subscribedCounts.videos})
                 </button>
                 <button
                   onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'shorts', activeUserEmail)}
                   style={{
-                    padding: '0.5rem 1.25rem',
+                    padding: '0.5rem 1rem',
                     borderRadius: '6px',
                     border: 'none',
                     background: subscribedTab === 'shorts' ? '#cc0000' : '#27272a',
@@ -503,12 +519,12 @@ export default function App() {
                     cursor: 'pointer'
                   }}
                 >
-                  Shorts ({subscribedCounts.shorts})
+                  ⚡ Shorts ({subscribedCounts.shorts})
                 </button>
                 <button
                   onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'playlists', activeUserEmail)}
                   style={{
-                    padding: '0.5rem 1.25rem',
+                    padding: '0.5rem 1rem',
                     borderRadius: '6px',
                     border: 'none',
                     background: subscribedTab === 'playlists' ? '#cc0000' : '#27272a',
@@ -517,7 +533,49 @@ export default function App() {
                     cursor: 'pointer'
                   }}
                 >
-                  Playlists ({subscribedCounts.playlists})
+                  📑 Playlists ({subscribedCounts.playlists})
+                </button>
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'live', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'live' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🔴 Live ({subscribedCounts.live})
+                </button>
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'podcasts', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'podcasts' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🎙️ Podcasts ({subscribedCounts.podcasts})
+                </button>
+                <button
+                  onClick={() => selectSubscribedChannel(selectedSubscribedChannel, 'posts', activeUserEmail)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: subscribedTab === 'posts' ? '#cc0000' : '#27272a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💬 Posts ({subscribedCounts.posts})
                 </button>
               </div>
 
@@ -532,8 +590,10 @@ export default function App() {
                       onClick={() => item.videoId && setActiveVideoId(item.videoId)}
                       style={{ background: '#09090b', padding: '1rem', borderRadius: '8px', border: '1px solid #27272a', cursor: 'pointer' }}
                     >
-                      <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title}</h5>
-                      <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>▶ Play Video</p>
+                      <h5 style={{ margin: '0 0 0.5rem 0', color: '#fff' }}>{item.title || item.content}</h5>
+                      <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.8rem' }}>
+                        {item.videoId ? '▶ Play Video' : (item.episodeCount ? `${item.episodeCount} Episodes` : 'Community Update')}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -552,7 +612,7 @@ export default function App() {
                 👤 Your Contents {ownChannel ? `(${ownChannel.title})` : ''}
               </h2>
               <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.9rem' }}>
-                {ownChannel ? ownChannel.description : 'Your uploaded videos, playlists, live streams, and community posts'}
+                {ownChannel ? ownChannel.description : 'Your uploaded videos, playlists, live streams, community posts, courses, and clips'}
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -569,12 +629,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* Sub-Tabs for Videos, Playlists, Live, Posts with Live Item Counts */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
+          {/* 6 Sub-Tabs for Videos, Playlists, Live, Posts, Courses, Clips with Live Item Counts */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.5rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
             <button
               onClick={() => loadYourContent('videos', activeUserEmail)}
               style={{
-                padding: '0.5rem 1.25rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '6px',
                 border: 'none',
                 background: yourContentTab === 'videos' ? '#059669' : '#27272a',
@@ -583,12 +643,12 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              Videos ({yourContentCounts.videos})
+              📹 Videos ({yourContentCounts.videos})
             </button>
             <button
               onClick={() => loadYourContent('playlists', activeUserEmail)}
               style={{
-                padding: '0.5rem 1.25rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '6px',
                 border: 'none',
                 background: yourContentTab === 'playlists' ? '#059669' : '#27272a',
@@ -597,12 +657,12 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              Playlists ({yourContentCounts.playlists})
+              📑 Playlists ({yourContentCounts.playlists})
             </button>
             <button
               onClick={() => loadYourContent('live', activeUserEmail)}
               style={{
-                padding: '0.5rem 1.25rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '6px',
                 border: 'none',
                 background: yourContentTab === 'live' ? '#059669' : '#27272a',
@@ -611,12 +671,12 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              Live ({yourContentCounts.live})
+              🔴 Live ({yourContentCounts.live})
             </button>
             <button
               onClick={() => loadYourContent('posts', activeUserEmail)}
               style={{
-                padding: '0.5rem 1.25rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '6px',
                 border: 'none',
                 background: yourContentTab === 'posts' ? '#059669' : '#27272a',
@@ -625,7 +685,35 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              Posts ({yourContentCounts.posts})
+              💬 Posts ({yourContentCounts.posts})
+            </button>
+            <button
+              onClick={() => loadYourContent('courses', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'courses' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🎓 Courses ({yourContentCounts.courses})
+            </button>
+            <button
+              onClick={() => loadYourContent('clips', activeUserEmail)}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: yourContentTab === 'clips' ? '#059669' : '#27272a',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              ✂️ Clips ({yourContentCounts.clips})
             </button>
           </div>
 
@@ -644,7 +732,7 @@ export default function App() {
                 >
                   <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1rem' }}>{item.title || item.content}</h4>
                   <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem' }}>
-                    {item.videoId ? '▶ Play Video' : (item.status ? `Stream Status: ${item.status}` : 'Community Update')}
+                    {item.videoId ? '▶ Play Video' : (item.lessonCount ? `${item.lessonCount} Lessons` : (item.status ? `Stream Status: ${item.status}` : 'Community Update'))}
                   </p>
                 </div>
               ))}

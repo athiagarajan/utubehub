@@ -1,11 +1,7 @@
 package com.utubehub.controller;
 
 import com.utubehub.entity.*;
-import com.utubehub.repository.ChannelRepository;
-import com.utubehub.repository.LiveStreamRepository;
-import com.utubehub.repository.PlaylistRepository;
-import com.utubehub.repository.PostRepository;
-import com.utubehub.repository.VideoRepository;
+import com.utubehub.repository.*;
 import com.utubehub.service.YouTubeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,7 +20,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/user")
-@Tag(name = "Your Contents (User Own Account)", description = "Endpoints for fetching and syncing your own uploaded videos, playlists, live streams, and community posts")
+@Tag(name = "Your Contents (User Own Account)", description = "Endpoints for fetching and syncing your own uploaded videos, playlists, live streams, community posts, courses, and clips")
 public class UserController {
 
     private final YouTubeService youTubeService;
@@ -33,6 +29,8 @@ public class UserController {
     private final PlaylistRepository playlistRepository;
     private final LiveStreamRepository liveStreamRepository;
     private final PostRepository postRepository;
+    private final CourseRepository courseRepository;
+    private final ClipRepository clipRepository;
     private final SubscriptionController subscriptionController;
     private final OAuth2AuthorizedClientService authorizedClientService;
 
@@ -44,6 +42,8 @@ public class UserController {
             PlaylistRepository playlistRepository,
             LiveStreamRepository liveStreamRepository,
             PostRepository postRepository,
+            CourseRepository courseRepository,
+            ClipRepository clipRepository,
             SubscriptionController subscriptionController,
             OAuth2AuthorizedClientService authorizedClientService) {
         this.youTubeService = youTubeService;
@@ -52,6 +52,8 @@ public class UserController {
         this.playlistRepository = playlistRepository;
         this.liveStreamRepository = liveStreamRepository;
         this.postRepository = postRepository;
+        this.courseRepository = courseRepository;
+        this.clipRepository = clipRepository;
         this.subscriptionController = subscriptionController;
         this.authorizedClientService = authorizedClientService;
     }
@@ -175,5 +177,29 @@ public class UserController {
             posts = postRepository.findByUserId(userId);
         }
         return ResponseEntity.ok(posts);
+    }
+
+    @GetMapping("/courses")
+    @Operation(summary = "Get Your Educational Courses", description = "Retrieves educational courses and structured modules created by your account.")
+    public ResponseEntity<List<CourseEntity>> getMyCourses(
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
+        List<CourseEntity> courses = courseRepository.findByUserId(userId);
+        if (courses.isEmpty()) {
+            subscriptionController.seedDemoDataForUser(userId);
+            courses = courseRepository.findByUserId(userId);
+        }
+        return ResponseEntity.ok(courses);
+    }
+
+    @GetMapping("/clips")
+    @Operation(summary = "Get Your Short Clips", description = "Retrieves short clips bookmarked or created from your uploaded videos.")
+    public ResponseEntity<List<ClipEntity>> getMyClips(
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
+        List<ClipEntity> clips = clipRepository.findByUserId(userId);
+        if (clips.isEmpty()) {
+            subscriptionController.seedDemoDataForUser(userId);
+            clips = clipRepository.findByUserId(userId);
+        }
+        return ResponseEntity.ok(clips);
     }
 }

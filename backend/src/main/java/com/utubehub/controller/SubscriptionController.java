@@ -1,15 +1,7 @@
 package com.utubehub.controller;
 
-import com.utubehub.entity.ChannelEntity;
-import com.utubehub.entity.LiveStreamEntity;
-import com.utubehub.entity.PlaylistEntity;
-import com.utubehub.entity.PostEntity;
-import com.utubehub.entity.VideoEntity;
-import com.utubehub.repository.ChannelRepository;
-import com.utubehub.repository.LiveStreamRepository;
-import com.utubehub.repository.PlaylistRepository;
-import com.utubehub.repository.PostRepository;
-import com.utubehub.repository.VideoRepository;
+import com.utubehub.entity.*;
+import com.utubehub.repository.*;
 import com.utubehub.service.YouTubeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/subscriptions")
-@Tag(name = "YouTube Subscriptions", description = "Endpoints for retrieving subscriptions, user own videos, channel videos, shorts, playlists, and syncing with YouTube API")
+@Tag(name = "YouTube Subscriptions", description = "Endpoints for retrieving subscriptions, user own videos, channel videos, shorts, playlists, live, podcasts, posts, and syncing with YouTube API")
 public class SubscriptionController {
 
     private final YouTubeService youTubeService;
@@ -37,6 +29,9 @@ public class SubscriptionController {
     private final PlaylistRepository playlistRepository;
     private final LiveStreamRepository liveStreamRepository;
     private final PostRepository postRepository;
+    private final PodcastRepository podcastRepository;
+    private final CourseRepository courseRepository;
+    private final ClipRepository clipRepository;
     private final OAuth2AuthorizedClientService authorizedClientService;
 
     @Autowired
@@ -47,6 +42,9 @@ public class SubscriptionController {
             PlaylistRepository playlistRepository,
             LiveStreamRepository liveStreamRepository,
             PostRepository postRepository,
+            PodcastRepository podcastRepository,
+            CourseRepository courseRepository,
+            ClipRepository clipRepository,
             OAuth2AuthorizedClientService authorizedClientService) {
         this.youTubeService = youTubeService;
         this.channelRepository = channelRepository;
@@ -54,6 +52,9 @@ public class SubscriptionController {
         this.playlistRepository = playlistRepository;
         this.liveStreamRepository = liveStreamRepository;
         this.postRepository = postRepository;
+        this.podcastRepository = podcastRepository;
+        this.courseRepository = courseRepository;
+        this.clipRepository = clipRepository;
         this.authorizedClientService = authorizedClientService;
     }
 
@@ -170,39 +171,71 @@ public class SubscriptionController {
     @Operation(summary = "Get Channel Playlists", description = "Retrieves playlists created by a specific channel.")
     public ResponseEntity<List<PlaylistEntity>> getChannelPlaylists(
             @PathVariable String channelId,
-            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId,
-            @RequestHeader(name = "Authorization", required = false) String authHeader,
-            Authentication authentication) {
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
 
-        List<PlaylistEntity> playlists = youTubeService.getChannelPlaylists(channelId);
+        List<PlaylistEntity> playlists = playlistRepository.findByChannelId(channelId);
         if (playlists.isEmpty()) {
-            String accessToken = resolveAccessToken(authHeader, authentication);
-            if (accessToken != null && !accessToken.startsWith("demo-")) {
-                try {
-                    youTubeService.syncChannelContent(accessToken, channelId, userId);
-                    playlists = youTubeService.getChannelPlaylists(channelId);
-                } catch (Exception e) {
-                    System.err.println("Channel playlists sync failed for " + channelId + ": " + e.getMessage());
-                }
-            } else if (playlists.isEmpty()) {
-                seedDemoDataForUser(userId);
-                playlists = youTubeService.getChannelPlaylists(channelId);
-            }
+            seedDemoDataForUser(userId);
+            playlists = playlistRepository.findByChannelId(channelId);
         }
         return ResponseEntity.ok(playlists);
+    }
+
+    @GetMapping("/{channelId}/live")
+    @Operation(summary = "Get Channel Live Streams", description = "Retrieves live streams and broadcasts created by a specific channel.")
+    public ResponseEntity<List<LiveStreamEntity>> getChannelLiveStreams(
+            @PathVariable String channelId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
+
+        List<LiveStreamEntity> streams = liveStreamRepository.findByChannelId(channelId);
+        if (streams.isEmpty()) {
+            seedDemoDataForUser(userId);
+            streams = liveStreamRepository.findByChannelId(channelId);
+        }
+        return ResponseEntity.ok(streams);
+    }
+
+    @GetMapping("/{channelId}/podcasts")
+    @Operation(summary = "Get Channel Podcasts", description = "Retrieves podcast series created by a specific channel.")
+    public ResponseEntity<List<PodcastEntity>> getChannelPodcasts(
+            @PathVariable String channelId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
+
+        List<PodcastEntity> podcasts = podcastRepository.findByChannelId(channelId);
+        if (podcasts.isEmpty()) {
+            seedDemoDataForUser(userId);
+            podcasts = podcastRepository.findByChannelId(channelId);
+        }
+        return ResponseEntity.ok(podcasts);
+    }
+
+    @GetMapping("/{channelId}/posts")
+    @Operation(summary = "Get Channel Posts", description = "Retrieves community posts and announcements created by a specific channel.")
+    public ResponseEntity<List<PostEntity>> getChannelPosts(
+            @PathVariable String channelId,
+            @RequestParam(required = false, defaultValue = "athiagarajan@gmail.com") String userId) {
+
+        List<PostEntity> posts = postRepository.findByChannelId(channelId);
+        if (posts.isEmpty()) {
+            seedDemoDataForUser(userId);
+            posts = postRepository.findByChannelId(channelId);
+        }
+        return ResponseEntity.ok(posts);
     }
 
     public void seedDemoDataForUser(String userId) {
         String cleanEmail = (userId != null && !userId.isBlank()) ? userId.trim() : "athiagarajan@gmail.com";
         String userSlug = cleanEmail.replaceAll("[^a-zA-Z0-9]", "_").toLowerCase();
         String ownChannelId = "UC_OWN_" + userSlug.toUpperCase();
+        String sub1ChannelId = "UC_SUB1_" + userSlug.toUpperCase();
+        String sub2ChannelId = "UC_SUB2_" + userSlug.toUpperCase();
 
         if (!channelRepository.existsById(ownChannelId)) {
             ChannelEntity ownChannel = ChannelEntity.builder()
                     .channelId(ownChannelId)
                     .userId(cleanEmail)
                     .title(cleanEmail + "'s YouTube Channel")
-                    .description("Uploaded videos, playlists, live streams, and community posts for " + cleanEmail)
+                    .description("Uploaded videos, playlists, live streams, courses, clips, and community posts for " + cleanEmail)
                     .subscriberCount(5200L)
                     .videoCount(8L)
                     .isMine(true)
@@ -210,7 +243,7 @@ public class SubscriptionController {
                     .build();
 
             ChannelEntity subChannel1 = ChannelEntity.builder()
-                    .channelId("UC_SUB1_" + userSlug.toUpperCase())
+                    .channelId(sub1ChannelId)
                     .userId(cleanEmail)
                     .title("Google Developers")
                     .description("Official Google Developers channel with the latest tutorials and news.")
@@ -221,7 +254,7 @@ public class SubscriptionController {
                     .build();
 
             ChannelEntity subChannel2 = ChannelEntity.builder()
-                    .channelId("UC_SUB2_" + userSlug.toUpperCase())
+                    .channelId(sub2ChannelId)
                     .userId(cleanEmail)
                     .title("Fireship")
                     .description("High-intensity code tutorials to help you build apps faster.")
@@ -260,7 +293,7 @@ public class SubscriptionController {
                 VideoEntity.builder()
                     .videoId("video_sub_1_" + userSlug)
                     .userId(cleanEmail)
-                    .channelId("UC_SUB1_" + userSlug.toUpperCase())
+                    .channelId(sub1ChannelId)
                     .title("Google I/O 2026 Developer Keynote Highlights")
                     .description("Featured science & technology presentation from Google I/O.")
                     .durationSeconds(1200)
@@ -271,7 +304,7 @@ public class SubscriptionController {
             ));
 
             // Seed Playlists
-            playlistRepository.save(
+            playlistRepository.saveAll(List.of(
                 PlaylistEntity.builder()
                     .playlistId("playlist_1_" + userSlug)
                     .userId(cleanEmail)
@@ -279,11 +312,19 @@ public class SubscriptionController {
                     .title("UTubeHub Engineering & Architecture Tutorials")
                     .description("Collection of project tutorials created for " + cleanEmail)
                     .itemCount(5)
+                    .build(),
+                PlaylistEntity.builder()
+                    .playlistId("playlist_sub_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(sub1ChannelId)
+                    .title("Google Cloud & GenAI Masterclass")
+                    .description("Official tutorials from Google Developers")
+                    .itemCount(12)
                     .build()
-            );
+            ));
 
             // Seed Live Streams
-            liveStreamRepository.save(
+            liveStreamRepository.saveAll(List.of(
                 LiveStreamEntity.builder()
                     .streamId("stream_1_" + userSlug)
                     .userId(cleanEmail)
@@ -292,11 +333,40 @@ public class SubscriptionController {
                     .description("Interactive coding stream for " + cleanEmail)
                     .status("completed")
                     .actualStartTime(LocalDateTime.now().minusDays(5))
+                    .build(),
+                LiveStreamEntity.builder()
+                    .streamId("stream_sub_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(sub1ChannelId)
+                    .title("Google Developers Live: Spring Boot & Cloud AI")
+                    .description("Live interactive broadcast from Google I/O")
+                    .status("completed")
+                    .actualStartTime(LocalDateTime.now().minusDays(10))
                     .build()
-            );
+            ));
+
+            // Seed Podcasts
+            podcastRepository.saveAll(List.of(
+                PodcastEntity.builder()
+                    .podcastId("podcast_sub_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(sub1ChannelId)
+                    .title("The Google Developer Podcast")
+                    .description("Deep dives into modern web engineering and cloud systems.")
+                    .episodeCount(42)
+                    .build(),
+                PodcastEntity.builder()
+                    .podcastId("podcast_sub_2_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(sub2ChannelId)
+                    .title("The Fireship Tech Talk Podcast")
+                    .description("Weekly discussions on frontend frameworks and backend databases.")
+                    .episodeCount(18)
+                    .build()
+            ));
 
             // Seed Community Posts
-            postRepository.save(
+            postRepository.saveAll(List.of(
                 PostEntity.builder()
                     .postId("post_1_" + userSlug)
                     .userId(cleanEmail)
@@ -304,6 +374,39 @@ public class SubscriptionController {
                     .content("🚀 Welcome to " + cleanEmail + "'s official channel updates & announcements!")
                     .publishedAt(LocalDateTime.now().minusDays(2))
                     .likeCount(88L)
+                    .build(),
+                PostEntity.builder()
+                    .postId("post_sub_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(sub1ChannelId)
+                    .content("📢 We just published our new Spring Boot 3.3 and React 18 integration guide! Check it out.")
+                    .publishedAt(LocalDateTime.now().minusDays(4))
+                    .likeCount(412L)
+                    .build()
+            ));
+
+            // Seed Courses
+            courseRepository.save(
+                CourseEntity.builder()
+                    .courseId("course_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(ownChannelId)
+                    .title("Complete Full-Stack Java & React Engineering Course")
+                    .description("Structured 10-module course covering Spring Boot 3.3, OAuth2, and Vite React 18.")
+                    .lessonCount(24)
+                    .build()
+            );
+
+            // Seed Clips
+            clipRepository.save(
+                ClipEntity.builder()
+                    .clipId("clip_1_" + userSlug)
+                    .userId(cleanEmail)
+                    .channelId(ownChannelId)
+                    .videoId("video_upload_1_" + userSlug)
+                    .title("Highlight: Setting up Google OIDC Security in Spring Boot")
+                    .durationSeconds(30)
+                    .publishedAt(LocalDateTime.now().minusDays(1))
                     .build()
             );
         }
