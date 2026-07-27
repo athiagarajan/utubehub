@@ -26,9 +26,8 @@ services:
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
   - type: static_site
     name: utubehub-frontend
-    rootDir: frontend
-    buildCommand: npm run build
-    staticPublishPath: ./dist
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
     routes:
       - type: rewrite
         source: /*
