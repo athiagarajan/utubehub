@@ -1,11 +1,25 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${AIVEN_PG_HOST:localhost}:${AIVEN_PG_PORT:5432}/${AIVEN_PG_DATABASE:utubehub}?sslmode=require
-    username: ${AIVEN_PG_USER:postgres}
-    password: ${AIVEN_PG_PASSWORD:password}
+    url: jdbc:postgresql://${AIVEN_PG_HOST:pg-2ff57b18-alagesan-0eb8.b.aivencloud.com}:${AIVEN_PG_PORT:15331}/${AIVEN_PG_DATABASE:defaultdb}?sslmode=require
+    username: ${AIVEN_PG_USER:avnadmin}
+    password: ${AIVEN_PG_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:YOUR_GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET:YOUR_GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+              - https://www.googleapis.com/auth/youtube.readonly
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
