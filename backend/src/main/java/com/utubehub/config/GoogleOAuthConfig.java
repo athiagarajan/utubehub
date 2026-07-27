@@ -5,6 +5,7 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -18,6 +19,12 @@ import java.io.Reader;
 
 @Configuration
 public class GoogleOAuthConfig {
+
+    @Value("${GOOGLE_CLIENT_ID:${spring.security.oauth2.client.registration.google.client-id:YOUR_CLIENT_ID}}")
+    private String configuredClientId;
+
+    @Value("${GOOGLE_CLIENT_SECRET:${spring.security.oauth2.client.registration.google.client-secret:YOUR_CLIENT_SECRET}}")
+    private String configuredClientSecret;
 
     @Bean
     public JsonFactory jsonFactory() {
@@ -39,20 +46,26 @@ public class GoogleOAuthConfig {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Notice: oauth_client_utubehub.json not found. Falling back to environment variables.");
+            System.err.println("Notice: oauth_client_utubehub.json not found.");
         }
-        return null;
+
+        GoogleClientSecrets.Details details = new GoogleClientSecrets.Details();
+        details.setClientId(configuredClientId);
+        details.setClientSecret(configuredClientSecret);
+        GoogleClientSecrets secrets = new GoogleClientSecrets();
+        secrets.setWeb(details);
+        return secrets;
     }
 
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository(GoogleClientSecrets secrets) {
-        String clientId = (secrets != null && secrets.getDetails() != null)
+        String clientId = (secrets != null && secrets.getDetails() != null && secrets.getDetails().getClientId() != null)
                 ? secrets.getDetails().getClientId()
-                : System.getenv().getOrDefault("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
+                : configuredClientId;
 
-        String clientSecret = (secrets != null && secrets.getDetails() != null)
+        String clientSecret = (secrets != null && secrets.getDetails() != null && secrets.getDetails().getClientSecret() != null)
                 ? secrets.getDetails().getClientSecret()
-                : System.getenv().getOrDefault("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
+                : configuredClientSecret;
 
         ClientRegistration googleRegistration = CommonOAuth2Provider.GOOGLE.getBuilder("google")
                 .clientId(clientId)
