@@ -3,7 +3,7 @@ services:
   - type: web
     name: utubehub-backend
     plan: free
-    runtime: docker
+    env: docker
     dockerfilePath: ./backend/Dockerfile
     envVars:
       - key: SPRING_PROFILES_ACTIVE
@@ -26,7 +26,8 @@ services:
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
   - type: web
     name: utubehub-frontend
-    runtime: static
+    plan: free
+    env: static
     rootDir: frontend
     buildCommand: npm run build
     staticPublishPath: ./dist
