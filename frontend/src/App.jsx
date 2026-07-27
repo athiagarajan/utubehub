@@ -38,7 +38,7 @@ export default function App() {
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
     // Check Google Auth Status
-    fetch(`${API_BASE}/v1/auth/user`)
+    fetch(`${API_BASE}/v1/auth/user`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.email) {
@@ -49,6 +49,14 @@ export default function App() {
           } else {
             setAuthenticatedAccounts([{ email: data.email, name: data.name }]);
           }
+          
+          fetch(`${API_BASE}/v1/auth/token`, { credentials: 'include' })
+            .then((r) => r.json())
+            .then((tokData) => {
+              if (tokData.accessToken) setUserToken(tokData.accessToken);
+            })
+            .catch(() => {});
+
           loadAllChannels(data.email);
         } else {
           setActiveUserEmail('atrteach@gmail.com');

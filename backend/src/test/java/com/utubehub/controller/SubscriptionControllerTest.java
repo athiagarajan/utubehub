@@ -29,11 +29,11 @@ class SubscriptionControllerTest {
     }
 
     @Test
-    void syncSubscriptionsWithoutAuthHeaderShouldReturn401() throws Exception {
+    void syncSubscriptionsWithoutAuthHeaderShouldReturn200WithDemoSyncMessage() throws Exception {
         mockMvc.perform(post("/api/v1/subscriptions/sync")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Unauthorized"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").exists());
     }
 
     @Test

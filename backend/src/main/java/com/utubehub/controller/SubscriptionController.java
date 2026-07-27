@@ -110,9 +110,10 @@ public class SubscriptionController {
 
         String accessToken = resolveAccessToken(authHeader, authentication);
         if (accessToken == null) {
-            return ResponseEntity.status(401).body(Map.of(
-                    "error", "Unauthorized",
-                    "message", "Bearer OAuth Access Token is required to sync with YouTube API."
+            seedDemoDataForUser(userId);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Synced demo channel data for account: " + userId + "! Log in with Google to sync live YouTube API subscriptions.",
+                    "channelsSynced", 3
             ));
         }
 
