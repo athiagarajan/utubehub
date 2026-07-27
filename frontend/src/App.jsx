@@ -28,15 +28,17 @@ export default function App() {
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [searchPrompt, setSearchPrompt] = useState('');
 
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+
   useEffect(() => {
     // Check Backend Health Status
-    fetch('/api/v1/health')
+    fetch(`${API_BASE}/v1/health`)
       .then((res) => res.json())
       .then((data) => setHealthStatus(`Backend Online (${data.service} v${data.version})`))
       .catch(() => setHealthStatus('Backend Offline / Reconnecting...'));
 
     // Check Google Auth Status
-    fetch('/api/v1/auth/user')
+    fetch(`${API_BASE}/v1/auth/user`)
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.email) {
@@ -84,7 +86,7 @@ export default function App() {
   };
 
   const loadAllChannels = (email = activeUserEmail) => {
-    return fetch(`/api/v1/subscriptions?userId=${encodeURIComponent(email)}`)
+    return fetch(`${API_BASE}/v1/subscriptions?userId=${encodeURIComponent(email)}`)
       .then((res) => res.json())
       .then((data) => {
         const mine = data.find((ch) => ch.isMine);
@@ -111,12 +113,12 @@ export default function App() {
   const fetchSubscribedChannelCounts = (channelId, email = activeUserEmail) => {
     const encEmail = encodeURIComponent(email);
     Promise.all([
-      fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/videos?userId=${encEmail}&shortsOnly=true`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/playlists?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/live?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/podcasts?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/subscriptions/${channelId}/posts?userId=${encEmail}`).then((r) => r.json())
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/videos?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/videos?userId=${encEmail}&shortsOnly=true`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/playlists?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/live?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/podcasts?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/subscriptions/${channelId}/posts?userId=${encEmail}`).then((r) => r.json())
     ])
     .then(([vids, shorts, lists, live, podcasts, posts]) => {
       setSubscribedCounts({
@@ -134,12 +136,12 @@ export default function App() {
   const fetchAllYourContentCounts = (email = activeUserEmail) => {
     const encEmail = encodeURIComponent(email);
     Promise.all([
-      fetch(`/api/v1/user/videos?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/playlists?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/live?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/posts?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/courses?userId=${encEmail}`).then((r) => r.json()),
-      fetch(`/api/v1/user/clips?userId=${encEmail}`).then((r) => r.json())
+      fetch(`${API_BASE}/v1/user/videos?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/user/playlists?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/user/live?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/user/posts?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/user/courses?userId=${encEmail}`).then((r) => r.json()),
+      fetch(`${API_BASE}/v1/user/clips?userId=${encEmail}`).then((r) => r.json())
     ])
     .then(([vids, lists, live, posts, courses, clips]) => {
       setYourContentCounts({
@@ -160,8 +162,8 @@ export default function App() {
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     Promise.all([
-      fetch(`/api/v1/subscriptions/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers }),
-      fetch(`/api/v1/user/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers })
+      fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers }),
+      fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers })
     ])
     .then(() => {
       setIsSyncing(false);
@@ -176,7 +178,7 @@ export default function App() {
   };
 
   const triggerDemoLogin = () => {
-    fetch('/api/v1/auth/demo-login', { method: 'POST' })
+    fetch(`${API_BASE}/v1/auth/demo-login`, { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
         setUserToken(data.accessToken);
@@ -189,7 +191,7 @@ export default function App() {
     setIsSubscribedSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/subscriptions/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
+    fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSubscribedSyncing(false);
@@ -206,7 +208,7 @@ export default function App() {
     setIsSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`/api/v1/user/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
+    fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
       .then((res) => res.json())
       .then((data) => {
         setIsSyncing(false);
@@ -224,17 +226,17 @@ export default function App() {
     setSubscribedTab(tab);
     fetchSubscribedChannelCounts(channel.channelId, email);
 
-    let endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}`;
+    let endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}`;
     if (tab === 'shorts') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}&shortsOnly=true`;
+      endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/videos?userId=${encodeURIComponent(email)}&shortsOnly=true`;
     } else if (tab === 'playlists') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/playlists?userId=${encodeURIComponent(email)}`;
+      endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/playlists?userId=${encodeURIComponent(email)}`;
     } else if (tab === 'live') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/live?userId=${encodeURIComponent(email)}`;
+      endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/live?userId=${encodeURIComponent(email)}`;
     } else if (tab === 'podcasts') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/podcasts?userId=${encodeURIComponent(email)}`;
+      endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/podcasts?userId=${encodeURIComponent(email)}`;
     } else if (tab === 'posts') {
-      endpoint = `/api/v1/subscriptions/${channel.channelId}/posts?userId=${encodeURIComponent(email)}`;
+      endpoint = `${API_BASE}/v1/subscriptions/${channel.channelId}/posts?userId=${encodeURIComponent(email)}`;
     }
 
     fetch(endpoint)
@@ -246,7 +248,7 @@ export default function App() {
   const loadYourContent = (tab = 'videos', email = activeUserEmail) => {
     setYourContentTab(tab);
     setIsYourContentLoading(true);
-    let endpoint = `/api/v1/user/${tab}?userId=${encodeURIComponent(email)}`;
+    let endpoint = `${API_BASE}/v1/user/${tab}?userId=${encodeURIComponent(email)}`;
 
     fetch(endpoint)
       .then((res) => res.json())
