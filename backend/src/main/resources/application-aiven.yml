@@ -2,6 +2,8 @@ server:
   port: 8080
   forward-headers-strategy: framework
 
+FRONTEND_URL: ${FRONTEND_URL:https://utubehub-frontend.onrender.com}
+
 spring:
   datasource:
     url: jdbc:postgresql://${AIVEN_PG_HOST:pg-2ff57b18-alagesan-0eb8.b.aivencloud.com}:${AIVEN_PG_PORT:15331}/${AIVEN_PG_DATABASE:utubehub}?sslmode=require
