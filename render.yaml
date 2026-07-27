@@ -23,11 +23,9 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
 
+staticSites:
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
-  - type: web
-    name: utubehub-frontend
-    plan: free
-    env: static_site
+  - name: utubehub-frontend
     rootDir: frontend
     buildCommand: npm run build
     staticPublishPath: ./dist
