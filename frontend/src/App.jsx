@@ -94,7 +94,7 @@ export default function App() {
   };
 
   const loadAllChannels = (email = activeUserEmail) => {
-    return fetch(`${API_BASE}/v1/subscriptions?userId=${encodeURIComponent(email)}`)
+    return fetch(`${API_BASE}/v1/subscriptions?userId=${encodeURIComponent(email)}`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         const mine = data.find((ch) => ch.isMine);
@@ -170,8 +170,8 @@ export default function App() {
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
     Promise.all([
-      fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers }),
-      fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers })
+      fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers, credentials: 'include' }),
+      fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(email)}`, { method: 'POST', headers, credentials: 'include' })
     ])
     .then(() => {
       setIsSyncing(false);
@@ -186,7 +186,7 @@ export default function App() {
   };
 
   const triggerDemoLogin = () => {
-    fetch(`${API_BASE}/v1/auth/demo-login`, { method: 'POST' })
+    fetch(`${API_BASE}/v1/auth/demo-login`, { method: 'POST', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setUserToken(data.accessToken);
@@ -199,7 +199,7 @@ export default function App() {
     setIsSubscribedSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
+    fetch(`${API_BASE}/v1/subscriptions/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers, credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setIsSubscribedSyncing(false);
@@ -216,7 +216,7 @@ export default function App() {
     setIsSyncing(true);
     const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
 
-    fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers })
+    fetch(`${API_BASE}/v1/user/sync?userId=${encodeURIComponent(activeUserEmail)}`, { method: 'POST', headers, credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setIsSyncing(false);
