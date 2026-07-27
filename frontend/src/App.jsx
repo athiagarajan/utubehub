@@ -67,10 +67,17 @@ export default function App() {
     });
   };
 
+  const getBackendUrl = (path) => {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL
+      ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '')
+      : 'http://localhost:8080';
+    return `${baseUrl}${path}`;
+  };
+
   const handleDropdownChange = (e) => {
     const val = e.target.value;
     if (val === 'LOGIN_GOOGLE_ACCOUNT') {
-      window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+      window.location.href = getBackendUrl('/oauth2/authorization/google');
     } else {
       switchUserAccount(val);
     }
@@ -324,13 +331,13 @@ export default function App() {
               🧪 Demo Auth
             </button>
             <a
-              href="http://localhost:8080/oauth2/authorization/google"
+              href={getBackendUrl('/oauth2/authorization/google')}
               style={{ color: '#ffffff', fontSize: '0.8rem', textDecoration: 'none', background: '#2563eb', padding: '0.4rem 0.75rem', borderRadius: '6px', fontWeight: 'bold' }}
             >
               🔑 Log in with Google
             </a>
             <a
-              href="http://localhost:8080/swagger-ui.html"
+              href={getBackendUrl('/swagger-ui.html')}
               target="_blank"
               rel="noreferrer"
               style={{ color: '#38bdf8', fontSize: '0.8rem', textDecoration: 'none', background: '#1e293b', padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid #334155' }}
