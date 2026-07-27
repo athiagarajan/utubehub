@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${AIVEN_PG_HOST:pg-2ff57b18-alagesan-0eb8.b.aivencloud.com}:${AIVEN_PG_PORT:15331}/${AIVEN_PG_DATABASE:defaultdb}?sslmode=require
+    url: jdbc:postgresql://${AIVEN_PG_HOST:pg-2ff57b18-alagesan-0eb8.b.aivencloud.com}:${AIVEN_PG_PORT:15331}/${AIVEN_PG_DATABASE:utubehub}?sslmode=require
     username: ${AIVEN_PG_USER:avnadmin}
     password: ${AIVEN_PG_PASSWORD}
     driver-class-name: org.postgresql.Driver
