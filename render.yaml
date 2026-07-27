@@ -27,6 +27,7 @@ services:
   - type: web
     name: utubehub-frontend
     runtime: static
+    plan: free
     rootDir: frontend
     buildCommand: npm run build
     staticPublishPath: ./dist
