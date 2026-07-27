@@ -26,6 +26,7 @@ services:
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
   - type: web
     name: utubehub-frontend
+    plan: free
     env: static_site
     rootDir: frontend
     buildCommand: npm run build
