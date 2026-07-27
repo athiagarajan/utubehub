@@ -95,6 +95,18 @@ public class AuthController {
             return ResponseEntity.ok(response);
         }
 
+        List<Map<String, Object>> registryProfiles = com.utubehub.config.OAuthTokenRegistry.getAllProfiles();
+        if (!registryProfiles.isEmpty()) {
+            Map<String, Object> latest = registryProfiles.get(registryProfiles.size() - 1);
+            Map<String, Object> response = new HashMap<>();
+            response.put("authenticated", true);
+            response.put("email", latest.get("email"));
+            response.put("name", latest.get("name"));
+            response.put("picture", latest.get("picture"));
+            response.put("accounts", registryProfiles);
+            return ResponseEntity.ok(response);
+        }
+
         if (activeAccountEmail != null && authenticatedAccounts.containsKey(activeAccountEmail)) {
             Map<String, Object> activeInfo = authenticatedAccounts.get(activeAccountEmail);
             Map<String, Object> response = new HashMap<>();

@@ -58,7 +58,7 @@ public class SubscriptionController {
         this.authorizedClientService = authorizedClientService;
     }
 
-    private String resolveAccessToken(String authHeader, Authentication authentication) {
+    private String resolveAccessToken(String authHeader, Authentication authentication, String userId) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
@@ -68,6 +68,12 @@ public class SubscriptionController {
                     oauthToken.getName());
             if (client != null && client.getAccessToken() != null) {
                 return client.getAccessToken().getTokenValue();
+            }
+        }
+        if (userId != null) {
+            String registryToken = com.utubehub.config.OAuthTokenRegistry.getToken(userId);
+            if (registryToken != null) {
+                return registryToken;
             }
         }
         return null;
@@ -80,7 +86,7 @@ public class SubscriptionController {
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
-        String accessToken = resolveAccessToken(authHeader, authentication);
+        String accessToken = resolveAccessToken(authHeader, authentication, userId);
 
         if (accessToken != null && !accessToken.startsWith("demo-")) {
             try {
@@ -108,7 +114,7 @@ public class SubscriptionController {
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             Authentication authentication) {
 
-        String accessToken = resolveAccessToken(authHeader, authentication);
+        String accessToken = resolveAccessToken(authHeader, authentication, userId);
         if (accessToken == null) {
             seedDemoDataForUser(userId);
             return ResponseEntity.ok(Map.of(
@@ -152,7 +158,7 @@ public class SubscriptionController {
 
         List<VideoEntity> videos = youTubeService.getChannelVideos(channelId, shortsOnly);
         if (videos.isEmpty()) {
-            String accessToken = resolveAccessToken(authHeader, authentication);
+            String accessToken = resolveAccessToken(authHeader, authentication, userId);
             if (accessToken != null && !accessToken.startsWith("demo-")) {
                 try {
                     youTubeService.syncChannelContent(accessToken, channelId, userId);

@@ -1,13 +1,19 @@
 package com.utubehub.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -20,6 +26,13 @@ public class SecurityConfig {
 
     @Value("${FRONTEND_URL:http://localhost:5173}")
     private String frontendUrl;
+
+    private final OAuth2AuthorizedClientService authorizedClientService;
+
+    @Autowired
+    public SecurityConfig(OAuth2AuthorizedClientService authorizedClientService) {
+        this.authorizedClientService = authorizedClientService;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ClientRegistrationRepository clientRegistrationRepository) throws Exception {
@@ -50,10 +63,35 @@ public class SecurityConfig {
             .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             .oauth2Login(oauth2 -> oauth2
                 .authorizationEndpoint(authEndpoint -> authEndpoint.authorizationRequestResolver(resolver))
-                .defaultSuccessUrl(frontendUrl, true)
+                .successHandler(customSuccessHandler())
             );
 
         return http.build();
+    }
+
+    @Bean
+    public AuthenticationSuccessHandler customSuccessHandler() {
+        return (request, response, authentication) -> {
+            if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+                OAuth2User oauthUser = oauthToken.getPrincipal();
+                String email = oauthUser.getAttribute("email");
+                String name = oauthUser.getAttribute("name");
+                String picture = oauthUser.getAttribute("picture");
+
+                OAuth2AuthorizedClient client = authorizedClientService.loadAuthorizedClient(
+                        oauthToken.getAuthorizedClientRegistrationId(),
+                        oauthToken.getName());
+
+                String tokenValue = (client != null && client.getAccessToken() != null)
+                        ? client.getAccessToken().getTokenValue()
+                        : null;
+
+                if (email != null) {
+                    OAuthTokenRegistry.saveTokenAndProfile(email, tokenValue, name, picture);
+                }
+            }
+            response.sendRedirect(frontendUrl);
+        };
     }
 
     @Bean
