@@ -2,7 +2,7 @@ services:
   # 1. Backend Web Service (Spring Boot 3 + Aiven PostgreSQL)
   - type: web
     name: utubehub-backend
-    runtime: java
+    env: java
     rootDir: backend
     buildCommand: ./gradlew build -x test
     startCommand: java -jar build/libs/utubehub-backend-1.0.0.jar --spring.profiles.active=aiven
@@ -25,8 +25,9 @@ services:
         sync: false
 
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
-  - type: static
+  - type: web
     name: utubehub-frontend
+    env: static
     rootDir: frontend
     buildCommand: npm run build
     staticPublishPath: ./dist
