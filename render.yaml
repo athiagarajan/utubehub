@@ -1,0 +1,36 @@
+services:
+  # 1. Backend Web Service (Spring Boot 3 + Aiven PostgreSQL)
+  - type: web
+    name: utubehub-backend
+    runtime: java
+    rootDir: backend
+    buildCommand: ./gradlew build -x test
+    startCommand: java -jar build/libs/utubehub-backend-1.0.0.jar --spring.profiles.active=aiven
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: aiven
+      - key: AIVEN_PG_HOST
+        value: pg-2ff57b18-alagesan-0eb8.b.aivencloud.com
+      - key: AIVEN_PG_PORT
+        value: "15331"
+      - key: AIVEN_PG_DATABASE
+        value: utubehub
+      - key: AIVEN_PG_USER
+        value: avnadmin
+      - key: AIVEN_PG_PASSWORD
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+  # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
+  - type: static
+    name: utubehub-frontend
+    rootDir: frontend
+    buildCommand: npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
