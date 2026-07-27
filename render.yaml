@@ -1,11 +1,9 @@
 services:
-  # 1. Backend Web Service (Spring Boot 3 + Aiven PostgreSQL)
+  # 1. Backend Web Service (Spring Boot 3 + Aiven PostgreSQL via Docker)
   - type: web
     name: utubehub-backend
-    env: java
-    rootDir: backend
-    buildCommand: ./gradlew build -x test
-    startCommand: java -jar build/libs/utubehub-backend-1.0.0.jar --spring.profiles.active=aiven
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: aiven
