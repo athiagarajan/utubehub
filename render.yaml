@@ -2,6 +2,7 @@ services:
   # 1. Backend Web Service (Spring Boot 3 + Aiven PostgreSQL via Docker)
   - type: web
     name: utubehub-backend
+    plan: free
     env: docker
     dockerfilePath: ./backend/Dockerfile
     envVars:
@@ -25,6 +26,7 @@ services:
   # 2. Frontend Static Site (Vite React 18 -> https://utubehub-frontend.onrender.com)
   - type: web
     name: utubehub-frontend
+    plan: free
     env: static
     rootDir: frontend
     buildCommand: npm run build
